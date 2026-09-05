@@ -311,27 +311,18 @@ function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, aten
   const entry = { group, casing, gap, interior, zonaToque, idUsuario: opciones.idUsuario || null };
 
   if(popupHtml){
-    let temporizador = null;
-    let pulsacionLarga = false;
-
-    zonaToque.on('mousedown', (e)=>{
-      pulsacionLarga = false;
-      temporizador = setTimeout(()=>{
-        pulsacionLarga = true;
-        if(opciones.idUsuario){
-          mostrarConfirmacionBorrar(entry);
-        } else {
-          mostrarConfirmacionNavegar(e.latlng);
-        }
-      }, 550);
+    zonaToque.on('click', (e)=>{
+      zonaToque.bindPopup(popupHtml).openPopup(e.latlng);
     });
-    zonaToque.on('mouseup', ()=>{
-      clearTimeout(temporizador);
-      if(!pulsacionLarga){
-        zonaToque.bindPopup(popupHtml).openPopup(zonaToque.getLatLngs()[0]);
+    zonaToque.on('contextmenu', (e)=>{
+      L.DomEvent.preventDefault(e);
+      zonaToque.closePopup();
+      if(opciones.idUsuario){
+        mostrarConfirmacionBorrar(entry);
+      } else {
+        mostrarConfirmacionNavegar(e.latlng);
       }
     });
-    zonaToque.on('mouseout', ()=> clearTimeout(temporizador));
   }
 
   todosLosCaminos.push(entry);
