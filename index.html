@@ -36,6 +36,11 @@
     padding:14px 14px 0 14px;pointer-events:none;
   }
 
+  .topbar-left{
+    position:absolute;top:14px;left:14px;z-index:1000;
+    display:flex;align-items:flex-start;gap:8px;
+  }
+
   .speed-badge{
     background:var(--panel);color:var(--ink);
     border-radius:10px;padding:8px 16px;text-align:center;min-width:64px;
@@ -90,8 +95,31 @@
   }
 
 
+  .info-toggle{
+    flex-shrink:0;
+    width:38px;height:38px;border-radius:10px;
+    background:var(--panel);border:none;color:var(--ink);
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    display:flex;align-items:center;justify-content:center;
+    font-size:14px;transition:transform .2s;
+    pointer-events:auto;
+  }
+  .info-toggle.abierto{ transform:rotate(180deg); }
+
+  .info-panel{
+    display:none;gap:8px;
+  }
+  .info-panel.show{ display:flex; }
+  .info-box{
+    background:var(--panel);border-radius:10px;padding:8px 14px;text-align:center;min-width:64px;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    pointer-events:auto;
+  }
+  .info-box .val{ font-size:18px;font-weight:600;line-height:1; }
+  .info-box .unit{ font-size:10px;color:var(--muted);margin-top:2px; }
+
   .aviso-osm{
-    position:absolute;left:14px;top:14px;z-index:1500;
+    position:absolute;left:14px;top:64px;z-index:1500;
     background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:10px;
     font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);
     opacity:0;transition:opacity .3s;pointer-events:none;
@@ -146,6 +174,14 @@
 <body>
 
 <div id="map"></div>
+
+<div class="topbar-left">
+  <button class="info-toggle" id="infoToggle" title="Rumbo y trip">›</button>
+  <div class="info-panel" id="infoPanel">
+    <div class="info-box" id="tripBox" title="Toca para reiniciar"><div class="val" id="tripVal">0.0</div><div class="unit">trip km</div></div>
+    <div class="info-box"><div class="val" id="rumboVal">--</div><div class="unit">grados</div></div>
+  </div>
+</div>
 
 <div class="topbar">
   <div class="speed-badge"><div class="val" id="speedVal">--</div><div class="unit">km/h</div></div>
@@ -465,9 +501,20 @@ const userIcon = L.divIcon({
   iconSize:[16,16], iconAnchor:[8,8]
 });
 let userMarker = null;
+let tripKm = 0;
+let ultimaPosTrip = null;
+
+function distanciaKm(a, b){
+  const R = 6371;
+  const dLat = (b[0]-a[0])*Math.PI/180;
+  const dLon = (b[1]-a[1])*Math.PI/180;
+  const lat1 = a[0]*Math.PI/180, lat2 = b[0]*Math.PI/180;
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
 
 function onPos(pos){
-  const { latitude, longitude, speed } = pos.coords;
+  const { latitude, longitude, speed, heading } = pos.coords;
   const latlng = [latitude, longitude];
   if(!userMarker){
     userMarker = L.marker(latlng, { icon:userIcon }).addTo(map);
@@ -477,6 +524,22 @@ function onPos(pos){
   }
   const kmh = (speed!=null && !isNaN(speed)) ? Math.round(speed*3.6) : null;
   document.getElementById('speedVal').textContent = kmh!=null ? kmh : '--';
+
+  // Rumbo (grados), directamente del GPS — el mismo dato que usan los roadbooks
+  const rumboEl = document.getElementById('rumboVal');
+  if(heading!=null && !isNaN(heading)){
+    rumboEl.textContent = Math.round(heading) + '°';
+  } else {
+    rumboEl.textContent = '--';
+  }
+
+  // Trip: distancia acumulada desde el último reinicio
+  if(ultimaPosTrip){
+    const d = distanciaKm(ultimaPosTrip, latlng);
+    if(d < 0.2){ tripKm += d; } // filtra saltos raros del GPS
+    document.getElementById('tripVal').textContent = tripKm.toFixed(1);
+  }
+  ultimaPosTrip = latlng;
 }
 
 function onErr(err){
@@ -665,6 +728,16 @@ try{
 }catch(err){}
 
 const controlEscala = L.control.scale({ metric:true, imperial:false, position:'bottomleft' }).addTo(map);
+
+document.getElementById('infoToggle').addEventListener('click', ()=>{
+  document.getElementById('infoPanel').classList.toggle('show');
+  document.getElementById('infoToggle').classList.toggle('abierto');
+});
+
+document.getElementById('tripBox').addEventListener('click', ()=>{
+  tripKm = 0;
+  document.getElementById('tripVal').textContent = '0.0';
+});
 
 // Posicionamiento manual preciso: capas pegado a la izquierda, escala justo a su derecha
 const elCapas = controlCapas.getContainer();
