@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="google" content="notranslate">
+<meta name="theme-color" content="#151a14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Senderos">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23151a14'/%3E%3Cpath d='M15 78 L38 30 L50 52 L62 22 L86 78 Z' fill='none' stroke='%234C8A22' stroke-width='7' stroke-linejoin='round' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='22' r='6' fill='%23378ADD'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23151a14'/%3E%3Cpath d='M15 78 L38 30 L50 52 L62 22 L86 78 Z' fill='none' stroke='%234C8A22' stroke-width='7' stroke-linejoin='round' stroke-linecap='round'/%3E%3Ccircle cx='62' cy='22' r='6' fill='%23378ADD'/%3E%3C/svg%3E">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22Senderos%20Todoterreno%22%2C%22short_name%22%3A%22Senderos%22%2C%22start_url%22%3A%22.%2Findex.html%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23151a14%22%2C%22theme_color%22%3A%22%23151a14%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg%2520xmlns%3D%2527http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2527%2520viewBox%3D%25270%25200%2520100%2520100%2527%253E%253Crect%2520width%3D%2527100%2527%2520height%3D%2527100%2527%2520fill%3D%2527%2523151a14%2527%2F%253E%253Cpath%2520d%3D%2527M15%252078%2520L38%252030%2520L50%252052%2520L62%252022%2520L86%252078%2520Z%2527%2520fill%3D%2527none%2527%2520stroke%3D%2527%25234C8A22%2527%2520stroke-width%3D%25277%2527%2520stroke-linejoin%3D%2527round%2527%2520stroke-linecap%3D%2527round%2527%2F%253E%253Ccircle%2520cx%3D%252762%2527%2520cy%3D%252722%2527%2520r%3D%25276%2527%2520fill%3D%2527%2523378ADD%2527%2F%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
+<title>Senderos Todoterreno — Prototipo</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<style>
+  :root{
+    --bg:#151a14;
+    --panel:#1e251c;
+    --ink:#eef0e6;
+    --muted:#9aa593;
+    --verde:#4C8A22;
+    --amarillo:#FFD400;
+    --rojo:#E53935;
+    --naranja:#B85C00;
+    --azul:#378ADD;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);}
+  #map{position:absolute;inset:0;}
+
+  .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:1000;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    padding:14px 14px 0 14px;pointer-events:none;
+  }
+  .brand{
+    background:var(--panel);color:var(--ink);
+    padding:8px 14px;border-radius:10px;
+    font-size:14px;font-weight:600;letter-spacing:.2px;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    pointer-events:auto;
+  }
+  .brand span{color:var(--muted);font-weight:400;display:block;font-size:11px;margin-top:1px;}
+
+  .speed-badge{
+    background:var(--panel);color:var(--ink);
+    border-radius:10px;padding:8px 16px;text-align:center;min-width:64px;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    pointer-events:auto;
+  }
+  .speed-badge .val{font-size:20px;font-weight:600;line-height:1;}
+  .speed-badge .unit{font-size:10px;color:var(--muted);margin-top:2px;}
+
+
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  .menu-btn{
+    position:absolute;right:14px;bottom:20px;z-index:1000;
+    width:48px;height:48px;border-radius:50%;
+    background:var(--panel);border:none;color:var(--ink);
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+    display:flex;align-items:center;justify-content:center;
+    font-size:20px;
+  }
+  .menu-btn.active{ background:var(--azul); }
+
+  .menu-panel{
+    position:absolute;right:14px;bottom:82px;z-index:1000;
+    background:var(--panel);border-radius:12px;overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;flex-direction:column;
+    min-width:190px;
+  }
+  .menu-panel.show{ display:flex; }
+  .menu-panel button{
+    background:none;border:none;color:var(--ink);text-align:left;
+    padding:13px 16px;font-size:14px;
+  }
+  .menu-panel button:not(:last-child){ border-bottom:1px solid rgba(255,255,255,.08); }
+  .menu-panel button.quitar{ color:#E53935; }
+
+  .leaflet-control-zoom{
+    display:flex !important;flex-direction:row !important;
+    position:absolute !important;right:68px !important;bottom:20px !important;
+    margin:0 !important;
+  }
+  .leaflet-control-zoom a{ width:34px !important;height:34px !important;line-height:34px !important;font-size:15px !important; }
+  .leaflet-control-zoom-in{ border-radius:8px 0 0 8px !important; }
+  .leaflet-control-zoom-out{ border-radius:0 8px 8px 0 !important; }
+
+  .leaflet-control-layers{ border-radius:8px !important; }
+  .leaflet-control-layers-toggle{ width:34px !important;height:34px !important; }
+  .leaflet-control-scale-line{
+    background:var(--panel) !important;color:var(--ink) !important;
+    border:none !important;padding:6px 10px !important;border-radius:8px !important;
+    font-size:11px !important;
+  }
+
+
+  .aviso-osm{
+    position:absolute;left:50%;top:70px;transform:translateX(-50%);z-index:1500;
+    background:var(--panel);color:var(--ink);padding:7px 14px;border-radius:20px;
+    font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,.35);
+    opacity:0;transition:opacity .3s;pointer-events:none;
+  }
+  .aviso-osm.show{ opacity:1; }
+    position:absolute;left:14px;right:14px;top:70px;z-index:1000;
+    background:var(--panel);border-radius:12px;padding:10px 14px;
+    display:none;align-items:center;justify-content:space-between;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);font-size:13px;
+  }
+  .draw-toolbar.show{ display:flex; }
+  .draw-toolbar button{
+    border:none;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600;
+  }
+  .btn-cancel{ background:transparent;color:var(--muted); }
+  .btn-finish{ background:var(--azul);color:white; }
+
+  .sheet-overlay{
+    position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.5);
+    display:none;align-items:flex-end;
+  }
+  .sheet-overlay.show{ display:flex; }
+  .sheet{
+    background:var(--panel);width:100%;border-radius:16px 16px 0 0;
+    padding:18px 18px 24px;
+  }
+  .sheet h3{ margin:0 0 4px; font-size:16px; }
+  .sheet .field-label{ font-size:12px;color:var(--muted);margin:14px 0 8px; }
+  .sheet input[type=text]{
+    width:100%;background:#131811;border:1px solid var(--muted);border-radius:8px;
+    color:var(--ink);padding:9px 10px;font-size:14px;
+  }
+  .swatches{ display:flex;gap:10px; }
+  .swatch{
+    width:44px;height:44px;border-radius:50%;border:3px solid transparent;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .swatch.selected{ border-color:white; }
+  .sheet-actions{ display:flex;gap:10px;margin-top:20px; }
+  .sheet-actions button{
+    flex:1;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:600;
+  }
+  .btn-guardar{ background:var(--azul);color:white; }
+  .btn-cancelar-sheet{ background:transparent;color:var(--muted);border:1px solid var(--muted) !important; }
+  .leaflet-popup-tip{background:var(--panel);}
+  .leaflet-popup-content{font-size:12.5px;margin:10px 12px;}
+  .leaflet-popup-content b{display:block;margin-bottom:3px;}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="topbar">
+  <div class="brand">Senderos Todoterreno<span>prototipo v0.1</span></div>
+  <div class="speed-badge"><div class="val" id="speedVal">--</div><div class="unit">km/h</div></div>
+</div>
+
+<button class="menu-btn" id="menuBtn" title="Menú">☰</button>
+<div class="menu-panel" id="menuPanel"></div>
+<input type="file" id="gpxInput" accept=".gpx" style="display:none">
+
+<div class="aviso-osm" id="avisoOsm"></div>
+
+<div class="draw-toolbar" id="drawToolbar">
+  <span id="drawHint">Toca el mapa para marcar el camino</span>
+  <div style="display:flex;gap:8px;">
+    <button class="btn-cancel" id="btnCancelDraw">Cancelar</button>
+    <button class="btn-finish" id="btnFinishDraw">Listo</button>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet">
+    <h3>Nuevo camino</h3>
+    <input type="text" id="nombrePista" placeholder="Nombre del camino (opcional)">
+
+    <div class="field-label">Dificultad</div>
+    <div class="swatches" id="swatchesDificultad">
+      <div class="swatch" data-val="verde" style="background:#4C8A22">✓</div>
+      <div class="swatch" data-val="amarillo" style="background:#FFD400"></div>
+      <div class="swatch" data-val="rojo" style="background:#E53935"></div>
+    </div>
+
+    <div class="field-label">Legalidad</div>
+    <div class="swatches" id="swatchesLegal">
+      <div class="swatch" data-val="verde" style="background:#4C8A22">✓</div>
+      <div class="swatch" data-val="amarillo" style="background:#D98A00"></div>
+      <div class="swatch" data-val="rojo" style="background:#A11E1E"></div>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn-cancelar-sheet" id="btnCancelarSheet">Descartar</button>
+      <button class="btn-guardar" id="btnGuardarPista">Guardar</button>
+    </div>
+  </div>
+</div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ---- Centro inicial: Biar (Alicante) ----
+const START = [38.6330, -0.7667];
+
+const map = L.map('map', { zoomControl:false, preferCanvas:true }).setView(START, 14);
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(err => console.warn('No se pudo activar el modo offline', err));
+}
+
+// Varios estilos de mapa
+const MAPTILER_KEY = 'XgC5ZGwB6l2URF1gr8I1';
+const capaMinimal = L.tileLayer(`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`, {
+  maxZoom: 20, attribution: '&copy; MapTiler &copy; OpenStreetMap contributors'
+});
+const capaTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+  maxZoom: 17, attribution: '&copy; OpenStreetMap contributors, SRTM | estilo: OpenTopoMap'
+});
+const capaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, attribution: 'Esri World Imagery'
+});
+
+capaMinimal.addTo(map); // estilo por defecto: limpio y minimalista
+
+const controlCapas = L.control.layers({
+  'Minimalista': capaMinimal,
+  'Topográfico': capaTopo,
+  'Satélite': capaSatelite
+}, null, { position:'bottomleft', collapsed:true }).addTo(map);
+
+L.control.zoom({ position:'bottomright' }).addTo(map);
+
+// ---- Pistas de ejemplo (coordenadas de muestra, no reales) ----
+// Cada pista: interior = dificultad, contorno = legalidad
+const pistas = [
+  {
+    nombre: 'Pista del Castillo',
+    coords: [[38.6355,-0.7690],[38.6340,-0.7660],[38.6320,-0.7630]],
+    dificultad: 'verde', legal: 'verde',
+    info: 'Fácil · Legal (≥4m, firme sólido)'
+  },
+  {
+    nombre: 'Sendero de la Sierra de Reclot',
+    coords: [[38.6320,-0.7630],[38.6295,-0.7600],[38.6265,-0.7580]],
+    dificultad: 'amarillo', legal: 'rojo',
+    info: 'Dificultad media · No legal (revisar normativa autonómica)'
+  },
+  {
+    nombre: 'Cortafuegos Serra de Mariola',
+    coords: [[38.6320,-0.7630],[38.6345,-0.7605],[38.6370,-0.7590]],
+    dificultad: 'rojo', legal: 'verde',
+    info: 'Difícil técnicamente · Legal (ancho suficiente)'
+  }
+];
+
+const COLORS = { verde:'#4C8A22', amarillo:'#FFD400', rojo:'#E53935' };
+const COLORS_CONTORNO = { verde:'#4C8A22', amarillo:'#D98A00', rojo:'#A11E1E' };
+
+// ---- Sistema de grosor/visibilidad adaptado al zoom ----
+// A ~2km de escala (zoom bajo) no se ven los caminos; van engrosando según te acercas
+const todosLosCaminos = []; // { group, casing, gap, interior, zonaToque }
+
+function pesosPorZoom(z){
+  if(z <= 12) return null; // oculto (escala ~2km o más alejado)
+  if(z === 13) return { casing:2.6, gap:1.4, interior:0.8, toque:14 }; // ~1.5km, fino
+  if(z === 14) return { casing:3.6, gap:2, interior:1.1, toque:17 };
+  if(z === 15) return { casing:4.8, gap:2.7, interior:1.4, toque:20 };
+  return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16+
+}
+
+function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado){
+  const casing = L.polyline(coords, { color:colorContorno, weight:1, lineCap:'round', opacity: atenuado?0.5:1 });
+  const gap = L.polyline(coords, { color:'#E7E2CC', weight:1, lineCap:'round', opacity:0.9 });
+  const interior = L.polyline(coords, { color:colorInterior, weight:1, lineCap:'round', opacity: atenuado?0.6:1 });
+  const zonaToque = L.polyline(coords, { color:'#000', weight:14, opacity:0 });
+  if(popupHtml){ zonaToque.bindPopup(popupHtml); interior.bindPopup(popupHtml); }
+  const group = L.layerGroup([casing, gap, interior, zonaToque]);
+  const entry = { group, casing, gap, interior, zonaToque };
+  todosLosCaminos.push(entry);
+  aplicarEstiloAUnCamino(entry, map.getZoom());
+  return entry;
+}
+
+function aplicarEstiloAUnCamino(entry, zoom){
+  const pesos = pesosPorZoom(zoom);
+  if(!pesos){
+    if(map.hasLayer(entry.group)) map.removeLayer(entry.group);
+    return;
+  }
+  if(!map.hasLayer(entry.group)) entry.group.addTo(map);
+  entry.casing.setStyle({ weight: pesos.casing });
+  entry.gap.setStyle({ weight: pesos.gap });
+  entry.interior.setStyle({ weight: pesos.interior });
+  entry.zonaToque.setStyle({ weight: pesos.toque });
+}
+
+function actualizarEstiloTodosLosCaminos(){
+  const zoom = map.getZoom();
+  todosLosCaminos.forEach(entry => aplicarEstiloAUnCamino(entry, zoom));
+}
+map.on('zoomend', actualizarEstiloTodosLosCaminos);
+
+function renderPista(p){
+  const popup = `<b>${p.nombre || 'Camino sin nombre'}</b>${p.info || ''}`;
+  crearCaminoVisual(p.coords, COLORS_CONTORNO[p.legal], COLORS[p.dificultad], popup, false);
+}
+
+pistas.forEach(renderPista);
+
+// ---- Carga automática de caminos reales (OpenStreetMap) con estimación de color ----
+function mostrarAvisoOsm(texto, autoOcultar){
+  const el = document.getElementById('avisoOsm');
+  el.textContent = texto;
+  el.classList.add('show');
+  if(autoOcultar){
+    clearTimeout(mostrarAvisoOsm._t);
+    mostrarAvisoOsm._t = setTimeout(()=> el.classList.remove('show'), 3500);
+  }
+}
+
+const COLOR_GRIS = '#8a8a8a';
+const idsOsmRenderizados = new Set();
+let timeoutCargaOsm = null;
+
+function estimarPista(tags){
+  let dificultad = null;
+  let legal = null;
+
+  const tracktype = tags.tracktype;
+  const surface = tags.surface;
+  const width = parseFloat(tags.width);
+  const access = tags.access;
+  const motorVehicle = tags.motor_vehicle || tags.motorcar;
+
+  if(tracktype === 'grade1' || tracktype === 'grade2') dificultad = 'verde';
+  else if(tracktype === 'grade3') dificultad = 'amarillo';
+  else if(tracktype === 'grade4' || tracktype === 'grade5') dificultad = 'rojo';
+  else if(surface){
+    if(['asphalt','paved','concrete','paving_stones','compacted'].includes(surface)) dificultad='verde';
+    else if(['gravel','fine_gravel','ground','dirt','unpaved'].includes(surface)) dificultad='amarillo';
+    else if(['rock','mud','sand','stone'].includes(surface)) dificultad='rojo';
+  }
+
+  if(!isNaN(width)) legal = width >= 4 ? 'verde' : 'rojo';
+  if(access === 'no' || access === 'private' || motorVehicle === 'no' || motorVehicle === 'private') legal = 'rojo';
+  if(legal === null && dificultad !== null) legal = 'amarillo'; // hay datos de dificultad pero no de anchura: revisar
+
+  return { dificultad: dificultad || 'gris', legal: legal || 'gris' };
+}
+
+function renderCaminoOsm(coords, dificultad, legal, tags){
+  const colorInt = dificultad === 'gris' ? COLOR_GRIS : COLORS[dificultad];
+  const colorCont = legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal];
+  const etiqueta = dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática · revisar sobre el terreno`;
+  const popup = `<b>${tags.name || 'Camino sin nombre'}</b>${etiqueta}`;
+  crearCaminoVisual(coords, colorCont, colorInt, popup, dificultad==='gris');
+}
+
+// ---- Caché local de caminos, para que funcionen también sin conexión ----
+const OSM_CACHE_KEY = 'senderos_cache_osm_v1';
+
+function leerCacheOsm(){
+  try{ return JSON.parse(localStorage.getItem(OSM_CACHE_KEY)) || []; }
+  catch(e){ return []; }
+}
+
+function guardarEnCacheOsm(nuevosElementos){
+  if(!nuevosElementos || !nuevosElementos.length) return;
+  const actuales = leerCacheOsm();
+  const idsExistentes = new Set(actuales.map(w=>w.id));
+  nuevosElementos.forEach(w=>{
+    if(!idsExistentes.has(w.id) && w.geometry && w.geometry.length>1){
+      actuales.push({ id:w.id, geometry:w.geometry, tags:w.tags||{} });
+      idsExistentes.add(w.id);
+    }
+  });
+  const recortado = actuales.slice(-8000); // límite de seguridad para el móvil
+  try{ localStorage.setItem(OSM_CACHE_KEY, JSON.stringify(recortado)); }
+  catch(e){ console.warn('La caché de caminos está llena', e); }
+}
+
+function wayDentroDeBbox(way, b){
+  return way.geometry.some(pt => pt.lat>=b.getSouth() && pt.lat<=b.getNorth() && pt.lon>=b.getWest() && pt.lon<=b.getEast());
+}
+
+function renderizarDesdeCacheOsm(b){
+  let añadidos = 0;
+  leerCacheOsm().forEach(way=>{
+    if(idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
+    idsOsmRenderizados.add(way.id);
+    const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
+    const { dificultad, legal } = estimarPista(way.tags || {});
+    renderCaminoOsm(coords, dificultad, legal, way.tags || {});
+    añadidos++;
+  });
+  return añadidos;
+}
+
+async function cargarCaminosOsmEnVista(){
+  if(map.getZoom() < 13){
+    mostrarAvisoOsm('Acércate más (zoom) para ver los caminos de la zona');
+    return;
+  }
+  const b = map.getBounds();
+  const desdeCache = renderizarDesdeCacheOsm(b);
+  if(desdeCache > 0) mostrarAvisoOsm(`${desdeCache} caminos cargados (guardados)`, true);
+
+  if(!navigator.onLine){
+    if(desdeCache === 0) mostrarAvisoOsm('Sin conexión: no hay caminos guardados de esta zona', true);
+    return;
+  }
+
+  const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+  const query = `[out:json][timeout:25];(way["highway"~"^(track|path|bridleway|unclassified)$"](${bbox});); out geom;`;
+  const servidores = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.ru/api/interpreter'
+  ];
+  if(desdeCache === 0) mostrarAvisoOsm('Buscando caminos en esta zona…');
+  for(const servidor of servidores){
+    try{
+      const resp = await fetch(servidor + '?data=' + encodeURIComponent(query));
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      guardarEnCacheOsm(data.elements || []);
+      let nuevos = 0;
+      (data.elements || []).forEach(way=>{
+        if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
+        idsOsmRenderizados.add(way.id);
+        const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
+        const { dificultad, legal } = estimarPista(way.tags || {});
+        renderCaminoOsm(coords, dificultad, legal, way.tags || {});
+        nuevos++;
+      });
+      if(nuevos > 0) mostrarAvisoOsm(`${nuevos} caminos nuevos`, true);
+      return;
+    }catch(e){
+      console.warn('Fallo con ' + servidor, e);
+    }
+  }
+  if(desdeCache === 0) mostrarAvisoOsm('No se pudo conectar con OpenStreetMap ahora mismo', true);
+}
+
+map.on('moveend', ()=>{
+  clearTimeout(timeoutCargaOsm);
+  timeoutCargaOsm = setTimeout(cargarCaminosOsmEnVista, 700);
+});
+cargarCaminosOsmEnVista();
+
+// ---- Pistas guardadas por el usuario (localStorage) ----
+const STORAGE_KEY = 'senderos_pistas_usuario';
+function cargarPistasUsuario(){
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch(e){ return []; }
+}
+function guardarPistaUsuario(p){
+  const actuales = cargarPistasUsuario();
+  actuales.push(p);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(actuales));
+}
+cargarPistasUsuario().forEach(renderPista);
+
+// ---- Ubicación GPS real ----
+const userIcon = L.divIcon({
+  className:'',
+  html:'<div style="width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid white;box-shadow:0 0 0 6px rgba(55,138,221,.25);"></div>',
+  iconSize:[16,16], iconAnchor:[8,8]
+});
+let userMarker = null;
+
+function onPos(pos){
+  const { latitude, longitude, speed } = pos.coords;
+  const latlng = [latitude, longitude];
+  if(!userMarker){
+    userMarker = L.marker(latlng, { icon:userIcon }).addTo(map);
+    map.setView(latlng, 15);
+  } else {
+    userMarker.setLatLng(latlng);
+  }
+  const kmh = (speed!=null && !isNaN(speed)) ? Math.round(speed*3.6) : null;
+  document.getElementById('speedVal').textContent = kmh!=null ? kmh : '--';
+}
+
+function onErr(err){
+  const motivos = {1:'Permiso denegado', 2:'Posición no disponible', 3:'Tiempo agotado'};
+  document.getElementById('speedVal').textContent = '--';
+  console.warn('GPS error:', motivos[err.code] || err.message);
+  alert('GPS: ' + (motivos[err.code] || err.message));
+}
+
+if('geolocation' in navigator){
+  navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
+  navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
+} else {
+  alert('Este navegador no soporta geolocalización');
+}
+
+// ---- Seguir el trazado real de caminos existentes entre los puntos marcados ----
+async function obtenerRutaSiguiendoCaminos(puntos){
+  if(puntos.length < 2) return null;
+  const coordsStr = puntos.map(p => `${p[1]},${p[0]}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/foot/${coordsStr}?overview=full&geometries=geojson`;
+  try{
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if(data.code === 'Ok' && data.routes && data.routes[0]){
+      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
+  }catch(e){
+    console.warn('No se pudo calcular el trazado real', e);
+  }
+  return null;
+}
+
+// ---- Descargar la zona actual para uso offline ----
+function long2tile(lon, z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
+function lat2tile(lat, z){ return Math.floor((1-Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*Math.pow(2,z)); }
+
+async function descargarZonaOffline(){
+  const b = map.getBounds();
+  const zActual = map.getZoom();
+  const zooms = [];
+  for(let z = Math.max(13, zActual-1); z <= Math.min(17, zActual+2); z++) zooms.push(z);
+
+  let urls = [];
+  zooms.forEach(z=>{
+    const xMin = long2tile(b.getWest(), z), xMax = long2tile(b.getEast(), z);
+    const yMin = lat2tile(b.getNorth(), z), yMax = lat2tile(b.getSouth(), z);
+    for(let x=xMin; x<=xMax; x++){
+      for(let y=yMin; y<=yMax; y++){
+        urls.push(`https://api.maptiler.com/maps/streets-v2/${z}/${x}/${y}@2x.png?key=${MAPTILER_KEY}`);
+      }
+    }
+  });
+  urls = urls.slice(0, 500); // límite de seguridad, evita descargas descontroladas
+
+  mostrarAvisoOsm(`Descargando mapa… 0/${urls.length}`);
+  let hechos = 0;
+  for(const url of urls){
+    try{ await fetch(url); }catch(e){}
+    hechos++;
+    if(hechos % 15 === 0) mostrarAvisoOsm(`Descargando mapa… ${hechos}/${urls.length}`);
+  }
+
+  mostrarAvisoOsm('Guardando caminos de la zona…');
+  const bboxAmplio = `${b.getSouth()-0.01},${b.getWest()-0.01},${b.getNorth()+0.01},${b.getEast()+0.01}`;
+  const query = `[out:json][timeout:25];(way["highway"~"^(track|path|bridleway|unclassified)$"](${bboxAmplio});); out geom;`;
+  try{
+    const resp = await fetch('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query));
+    const data = await resp.json();
+    guardarEnCacheOsm(data.elements || []);
+  }catch(e){
+    console.warn('No se pudieron guardar caminos extra', e);
+  }
+
+  mostrarAvisoOsm('Zona guardada para uso sin conexión ✓', true);
+}
+const GPX_STORAGE_KEY = 'senderos_ultimo_gpx';
+let capaGpx = null;
+let capaFlechasGpx = null;
+let gpxActual = null; // { nombre, coords }
+
+function calcularRumbo(a, b){
+  const lat1 = a[0]*Math.PI/180, lat2 = b[0]*Math.PI/180;
+  const dLon = (b[1]-a[1])*Math.PI/180;
+  const y = Math.sin(dLon)*Math.cos(lat2);
+  const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+  return (Math.atan2(y,x)*180/Math.PI + 360) % 360;
+}
+
+function iconoFlecha(angulo, tam){
+  const base = tam * 0.46;
+  return L.divIcon({
+    className:'',
+    html:`<div style="width:0;height:0;border-left:${base}px solid transparent;border-right:${base}px solid transparent;border-bottom:${tam}px solid #8A3FFC;transform:rotate(${angulo}deg);filter:drop-shadow(0 0 1.5px white);"></div>`,
+    iconSize:[tam,tam], iconAnchor:[tam/2,tam/2]
+  });
+}
+
+// A más zoom (más cerca), flechas más pequeñas pero más numerosas; al alejar, más grandes hasta un tamaño máximo
+function parametrosFlechasPorZoom(z){
+  if(z <= 13) return { tam:13, factorDensidad:12 };
+  if(z === 14) return { tam:11, factorDensidad:8 };
+  if(z === 15) return { tam:10, factorDensidad:5 };
+  if(z === 16) return { tam:9,  factorDensidad:3 };
+  return { tam:8, factorDensidad:2 }; // zoom 17+
+}
+
+function actualizarFlechasGpx(){
+  if(!gpxActual) return;
+  if(capaFlechasGpx) map.removeLayer(capaFlechasGpx);
+  capaFlechasGpx = L.layerGroup().addTo(map);
+  const coords = gpxActual.coords;
+  const { tam, factorDensidad } = parametrosFlechasPorZoom(map.getZoom());
+  const nFlechas = Math.max(3, Math.min(90, Math.round(coords.length / factorDensidad)));
+  const paso = Math.max(1, Math.floor(coords.length / nFlechas));
+  for(let i=0; i<coords.length-1; i+=paso){
+    const rumbo = calcularRumbo(coords[i], coords[i+1]);
+    L.marker(coords[i], { icon: iconoFlecha(rumbo, tam), interactive:false }).addTo(capaFlechasGpx);
+  }
+}
+map.on('zoomend', actualizarFlechasGpx);
+
+function dibujarGpx(coords, nombre){
+  if(capaGpx){ map.removeLayer(capaGpx); }
+  gpxActual = { nombre, coords };
+  capaGpx = L.layerGroup().addTo(map);
+  L.polyline(coords, { color:'#ffffff', weight:6, opacity:0.9, lineCap:'round' }).addTo(capaGpx);
+  L.polyline(coords, { color:'#8A3FFC', weight:3, opacity:1, lineCap:'round' }).addTo(capaGpx);
+  L.circleMarker(coords[0], { radius:7, color:'#8A3FFC', fillColor:'white', fillOpacity:1, weight:3 })
+    .bindPopup(`<b>${nombre || 'Track GPX'}</b>Inicio del recorrido`).addTo(capaGpx);
+
+  map.fitBounds(L.polyline(coords).getBounds(), { padding:[40,40] });
+  actualizarFlechasGpx();
+}
+
+function invertirGpx(){
+  if(!gpxActual) return;
+  const coordsInvertidas = gpxActual.coords.slice().reverse();
+  dibujarGpx(coordsInvertidas, gpxActual.nombre);
+  try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify(gpxActual)); }catch(err){}
+}
+
+function quitarGpx(){
+  if(capaGpx){ map.removeLayer(capaGpx); capaGpx = null; }
+  if(capaFlechasGpx){ map.removeLayer(capaFlechasGpx); capaFlechasGpx = null; }
+  gpxActual = null;
+  localStorage.removeItem(GPX_STORAGE_KEY);
+}
+
+function parsearGpx(texto){
+  const xml = new DOMParser().parseFromString(texto, 'text/xml');
+  let puntos = Array.from(xml.querySelectorAll('trkpt'));
+  if(puntos.length === 0) puntos = Array.from(xml.querySelectorAll('rtept'));
+  return puntos.map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))])
+               .filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+}
+
+document.getElementById('gpxInput').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const texto = ev.target.result;
+    const coords = parsearGpx(texto);
+    if(coords.length < 2){
+      alert('No se han podido leer puntos de recorrido en este archivo GPX.');
+      return;
+    }
+    dibujarGpx(coords, file.name.replace('.gpx',''));
+    try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify({ nombre:file.name, coords })); }catch(err){}
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+// Recuperar el último GPX cargado, si lo hay
+try{
+  const guardado = JSON.parse(localStorage.getItem(GPX_STORAGE_KEY));
+  if(guardado && guardado.coords && guardado.coords.length > 1){
+    dibujarGpx(guardado.coords, guardado.nombre);
+  }
+}catch(err){}
+
+const controlEscala = L.control.scale({ metric:true, imperial:false, position:'bottomleft' }).addTo(map);
+
+// Posicionamiento manual preciso: capas pegado a la izquierda, escala justo a su derecha
+const elCapas = controlCapas.getContainer();
+elCapas.style.position = 'absolute';
+elCapas.style.left = '14px';
+elCapas.style.bottom = '16px';
+elCapas.style.margin = '0';
+
+const elEscala = controlEscala.getContainer();
+elEscala.style.position = 'absolute';
+elEscala.style.left = '64px';
+elEscala.style.bottom = '16px';
+elEscala.style.margin = '0';
+
+// ---- Menú único desplegable ----
+function irAMiPosicion(){
+  if(userMarker){
+    map.setView(userMarker.getLatLng(), 16);
+  } else if('geolocation' in navigator){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      map.setView([pos.coords.latitude, pos.coords.longitude], 16);
+    });
+  }
+}
+
+const menuBtn = document.getElementById('menuBtn');
+const menuPanel = document.getElementById('menuPanel');
+
+function abrirMenu(){
+  const trackCargado = !!capaGpx;
+  menuPanel.innerHTML = `
+    <button data-action="locate">📍 Mi posición</button>
+    <button data-action="draw">✎ Marcar camino</button>
+    <button data-action="descargar-offline">⬇ Descargar zona (offline)</button>
+    ${trackCargado
+      ? `<button data-action="gpx-invertir">🔁 Invertir track</button><button data-action="gpx-otro">🧭 Cargar otro track</button><button data-action="gpx-quitar" class="quitar">🗑 Quitar track</button>`
+      : `<button data-action="gpx-cargar">🧭 Cargar track GPX</button>`}
+  `;
+  menuPanel.classList.add('show');
+  menuBtn.classList.add('active');
+}
+
+function cerrarMenu(){
+  menuPanel.classList.remove('show');
+  menuBtn.classList.remove('active');
+}
+
+menuBtn.addEventListener('click', ()=>{
+  menuPanel.classList.contains('show') ? cerrarMenu() : abrirMenu();
+});
+
+menuPanel.addEventListener('click', (e)=>{
+  const accion = e.target.dataset.action;
+  if(!accion) return;
+  cerrarMenu();
+  if(accion === 'locate') irAMiPosicion();
+  else if(accion === 'draw') activarDibujo(!dibujando);
+  else if(accion === 'gpx-cargar' || accion === 'gpx-otro') document.getElementById('gpxInput').click();
+  else if(accion === 'gpx-quitar') quitarGpx();
+  else if(accion === 'gpx-invertir') invertirGpx();
+  else if(accion === 'descargar-offline') descargarZonaOffline();
+});
+
+// ---- Modo dibujo: marcar un camino nuevo ----
+let dibujando = false;
+let puntosNuevos = [];
+let lineaTemp = null;
+let marcadoresTemp = [];
+
+const drawToolbar = document.getElementById('drawToolbar');
+const sheetOverlay = document.getElementById('sheetOverlay');
+
+function limpiarDibujoTemp(){
+  puntosNuevos = [];
+  if(lineaTemp){ map.removeLayer(lineaTemp); lineaTemp = null; }
+  marcadoresTemp.forEach(m=>map.removeLayer(m));
+  marcadoresTemp = [];
+}
+
+function activarDibujo(activo){
+  dibujando = activo;
+  drawToolbar.classList.toggle('show', activo);
+  if(!activo) limpiarDibujoTemp();
+}
+
+document.getElementById('btnCancelDraw').addEventListener('click', ()=> activarDibujo(false));
+
+map.on('click', (e)=>{
+  if(!dibujando) return;
+  puntosNuevos.push([e.latlng.lat, e.latlng.lng]);
+  const punto = L.circleMarker(e.latlng, { radius:5, color:'#378ADD', fillColor:'#378ADD', fillOpacity:1 }).addTo(map);
+  marcadoresTemp.push(punto);
+  if(lineaTemp) map.removeLayer(lineaTemp);
+  if(puntosNuevos.length > 1){
+    lineaTemp = L.polyline(puntosNuevos, { color:'#378ADD', weight:4, dashArray:'6,6' }).addTo(map);
+  }
+});
+
+let dificultadSel = 'verde';
+let legalSel = 'verde';
+
+function pintarSeleccion(contenedorId, valor){
+  document.querySelectorAll(`#${contenedorId} .swatch`).forEach(sw=>{
+    const activo = sw.dataset.val === valor;
+    sw.classList.toggle('selected', activo);
+    sw.textContent = activo ? '✓' : '';
+  });
+}
+
+document.getElementById('swatchesDificultad').addEventListener('click', (e)=>{
+  if(!e.target.dataset.val) return;
+  dificultadSel = e.target.dataset.val;
+  pintarSeleccion('swatchesDificultad', dificultadSel);
+});
+document.getElementById('swatchesLegal').addEventListener('click', (e)=>{
+  if(!e.target.dataset.val) return;
+  legalSel = e.target.dataset.val;
+  pintarSeleccion('swatchesLegal', legalSel);
+});
+
+document.getElementById('btnFinishDraw').addEventListener('click', async ()=>{
+  if(puntosNuevos.length < 2){
+    alert('Marca al menos dos puntos en el mapa para formar un camino.');
+    return;
+  }
+
+  document.getElementById('drawHint').textContent = 'Calculando trazado real…';
+  document.getElementById('btnFinishDraw').disabled = true;
+
+  const rutaReal = await obtenerRutaSiguiendoCaminos(puntosNuevos);
+
+  document.getElementById('btnFinishDraw').disabled = false;
+  document.getElementById('drawHint').textContent = 'Toca el mapa para marcar el camino';
+
+  if(rutaReal && rutaReal.length > 1){
+    puntosNuevos = rutaReal;
+    if(lineaTemp) map.removeLayer(lineaTemp);
+    lineaTemp = L.polyline(puntosNuevos, { color:'#378ADD', weight:4, dashArray:'6,6' }).addTo(map);
+  } else {
+    alert('No se ha encontrado un camino trazado entre esos puntos (puede que sea una zona sin mapear todavía). Se usará la línea recta que marcaste.');
+  }
+
+  dificultadSel = 'verde'; legalSel = 'verde';
+  pintarSeleccion('swatchesDificultad', 'verde');
+  pintarSeleccion('swatchesLegal', 'verde');
+  document.getElementById('nombrePista').value = '';
+  sheetOverlay.classList.add('show');
+});
+
+document.getElementById('btnCancelarSheet').addEventListener('click', ()=>{
+  sheetOverlay.classList.remove('show');
+});
+
+document.getElementById('btnGuardarPista').addEventListener('click', ()=>{
+  const nombre = document.getElementById('nombrePista').value.trim();
+  const nuevaPista = {
+    nombre: nombre || 'Camino sin nombre',
+    coords: puntosNuevos.slice(),
+    dificultad: dificultadSel,
+    legal: legalSel,
+    info: ''
+  };
+  guardarPistaUsuario(nuevaPista);
+  renderPista(nuevaPista);
+  sheetOverlay.classList.remove('show');
+  activarDibujo(false);
+});
+</script>
+
+</body>
+</html>
