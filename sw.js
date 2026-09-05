@@ -1,5 +1,5 @@
 const CACHE_TILES = 'senderos-tiles-v1';
-const CACHE_SHELL = 'senderos-shell-v3';
+const CACHE_SHELL = 'senderos-shell-v4';
 const PAGINA_PRINCIPAL = './index.html';
 
 self.addEventListener('install', (e) => {
@@ -39,7 +39,7 @@ self.addEventListener('fetch', (e) => {
   // Navegación a la app: si no hay red, servir la copia guardada
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(PAGINA_PRINCIPAL))
+      fetch(e.request, { cache: 'reload' }).catch(() => caches.match(PAGINA_PRINCIPAL))
     );
   }
 });
