@@ -301,17 +301,68 @@ function pesosPorZoom(z){
   return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16+
 }
 
-function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado){
+function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado, opciones){
+  opciones = opciones || {};
   const casing = L.polyline(coords, { color:colorContorno, weight:1, lineCap:'round', opacity: atenuado?0.5:1 });
   const gap = L.polyline(coords, { color:'#E7E2CC', weight:1, lineCap:'round', opacity:0.9 });
   const interior = L.polyline(coords, { color:colorInterior, weight:1, lineCap:'round', opacity: atenuado?0.6:1 });
   const zonaToque = L.polyline(coords, { color:'#000', weight:14, opacity:0 });
-  if(popupHtml){ zonaToque.bindPopup(popupHtml); interior.bindPopup(popupHtml); }
   const group = L.layerGroup([casing, gap, interior, zonaToque]);
-  const entry = { group, casing, gap, interior, zonaToque };
+  const entry = { group, casing, gap, interior, zonaToque, idUsuario: opciones.idUsuario || null };
+
+  if(popupHtml){
+    let temporizador = null;
+    let pulsacionLarga = false;
+
+    zonaToque.on('mousedown', (e)=>{
+      pulsacionLarga = false;
+      temporizador = setTimeout(()=>{
+        pulsacionLarga = true;
+        if(opciones.idUsuario){
+          mostrarConfirmacionBorrar(entry);
+        } else {
+          mostrarConfirmacionNavegar(e.latlng);
+        }
+      }, 550);
+    });
+    zonaToque.on('mouseup', ()=>{
+      clearTimeout(temporizador);
+      if(!pulsacionLarga){
+        zonaToque.bindPopup(popupHtml).openPopup(zonaToque.getLatLngs()[0]);
+      }
+    });
+    zonaToque.on('mouseout', ()=> clearTimeout(temporizador));
+  }
+
   todosLosCaminos.push(entry);
   aplicarEstiloAUnCamino(entry, map.getZoom());
   return entry;
+}
+
+function mostrarConfirmacionBorrar(entry){
+  if(confirm('¿Eliminar este camino que marcaste?')){
+    map.removeLayer(entry.group);
+    const idx = todosLosCaminos.indexOf(entry);
+    if(idx > -1) todosLosCaminos.splice(idx, 1);
+    eliminarPistaUsuarioPorId(entry.idUsuario);
+  }
+}
+
+async function mostrarConfirmacionNavegar(latlng){
+  if(!confirm('¿Quieres navegar hasta este punto?')) return;
+  if(!userMarker){
+    alert('Aún no se ha detectado tu posición GPS.');
+    return;
+  }
+  mostrarAvisoOsm('Calculando ruta hasta el punto…');
+  const origen = userMarker.getLatLng();
+  const ruta = await obtenerRutaSiguiendoCaminos([[origen.lat, origen.lng], [latlng.lat, latlng.lng]]);
+  if(ruta && ruta.length > 1){
+    dibujarGpx(ruta, 'Ruta hasta el punto');
+    mostrarAvisoOsm('Ruta calculada ✓', true);
+  } else {
+    mostrarAvisoOsm('No se pudo calcular la ruta hasta ahí', true);
+  }
 }
 
 function aplicarEstiloAUnCamino(entry, zoom){
@@ -334,8 +385,8 @@ function actualizarEstiloTodosLosCaminos(){
 map.on('zoomend', actualizarEstiloTodosLosCaminos);
 
 function renderPista(p){
-  const popup = `<b>${p.nombre || 'Camino sin nombre'}</b>${p.info || ''}`;
-  crearCaminoVisual(p.coords, COLORS_CONTORNO[p.legal], COLORS[p.dificultad], popup, false);
+  const popup = `<b>${p.nombre || 'Camino sin nombre'}</b>${p.info || ''}${p.idUsuario ? '<br><small>Mantén pulsado el camino para borrarlo</small>' : ''}`;
+  crearCaminoVisual(p.coords, COLORS_CONTORNO[p.legal], COLORS[p.dificultad], popup, false, { idUsuario: p.idUsuario || null });
 }
 
 pistas.forEach(renderPista);
@@ -490,6 +541,11 @@ function cargarPistasUsuario(){
 function guardarPistaUsuario(p){
   const actuales = cargarPistasUsuario();
   actuales.push(p);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(actuales));
+}
+function eliminarPistaUsuarioPorId(id){
+  if(!id) return;
+  const actuales = cargarPistasUsuario().filter(p => p.idUsuario !== id);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(actuales));
 }
 cargarPistasUsuario().forEach(renderPista);
@@ -769,6 +825,7 @@ const menuPanel = document.getElementById('menuPanel');
 function abrirMenu(){
   const trackCargado = !!capaGpx;
   menuPanel.innerHTML = `
+    <button data-action="buscar">🔍 Buscar lugar</button>
     <button data-action="locate">📍 Mi posición</button>
     <button data-action="draw">✎ Marcar camino</button>
     <button data-action="descargar-offline">⬇ Descargar zona (offline)</button>
@@ -785,6 +842,24 @@ function cerrarMenu(){
   menuBtn.classList.remove('active');
 }
 
+async function buscarLugar(){
+  const consulta = prompt('¿Qué localidad o lugar quieres buscar?');
+  if(!consulta) return;
+  mostrarAvisoOsm(`Buscando "${consulta}"…`);
+  try{
+    const resp = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(consulta));
+    const data = await resp.json();
+    if(data && data[0]){
+      map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 14);
+      mostrarAvisoOsm('Encontrado: ' + data[0].display_name.split(',')[0], true);
+    } else {
+      mostrarAvisoOsm(`No se ha encontrado "${consulta}"`, true);
+    }
+  }catch(e){
+    mostrarAvisoOsm('Error al buscar (revisa la conexión)', true);
+  }
+}
+
 menuBtn.addEventListener('click', ()=>{
   menuPanel.classList.contains('show') ? cerrarMenu() : abrirMenu();
 });
@@ -799,6 +874,7 @@ menuPanel.addEventListener('click', (e)=>{
   else if(accion === 'gpx-quitar') quitarGpx();
   else if(accion === 'gpx-invertir') invertirGpx();
   else if(accion === 'descargar-offline') descargarZonaOffline();
+  else if(accion === 'buscar') buscarLugar();
 });
 
 // ---- Modo dibujo: marcar un camino nuevo ----
@@ -905,6 +981,7 @@ document.getElementById('btnCancelarSheet').addEventListener('click', ()=>{
 document.getElementById('btnGuardarPista').addEventListener('click', ()=>{
   const nombre = document.getElementById('nombrePista').value.trim();
   const nuevaPista = {
+    idUsuario: 'p' + Date.now(),
     nombre: nombre || 'Camino sin nombre',
     coords: puntosNuevos.slice(),
     dificultad: dificultadSel,
