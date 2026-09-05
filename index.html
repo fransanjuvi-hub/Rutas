@@ -167,6 +167,7 @@
 <div class="draw-toolbar" id="drawToolbar">
   <span id="drawHint">Toca el mapa para marcar el camino</span>
   <div style="display:flex;gap:8px;">
+    <button class="btn-cancel" id="btnDeshacerPunto" title="Deshacer último punto">↶</button>
     <button class="btn-cancel" id="btnCancelDraw">Cancelar</button>
     <button class="btn-finish" id="btnFinishDraw">Listo</button>
   </div>
@@ -504,14 +505,18 @@ async function obtenerRutaSiguiendoCaminos(puntos){
   if(puntos.length < 2) return null;
   const coordsStr = puntos.map(p => `${p[1]},${p[0]}`).join(';');
   const url = `https://router.project-osrm.org/route/v1/foot/${coordsStr}?overview=full&geometries=geojson`;
+  const control = new AbortController();
+  const limite = setTimeout(()=> control.abort(), 8000); // no esperar más de 8 segundos
   try{
-    const resp = await fetch(url);
+    const resp = await fetch(url, { signal: control.signal });
     const data = await resp.json();
     if(data.code === 'Ok' && data.routes && data.routes[0]){
       return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
   }catch(e){
-    console.warn('No se pudo calcular el trazado real', e);
+    console.warn('No se pudo calcular el trazado real (o tardó demasiado)', e);
+  }finally{
+    clearTimeout(limite);
   }
   return null;
 }
@@ -753,6 +758,17 @@ function activarDibujo(activo){
 }
 
 document.getElementById('btnCancelDraw').addEventListener('click', ()=> activarDibujo(false));
+
+document.getElementById('btnDeshacerPunto').addEventListener('click', ()=>{
+  if(puntosNuevos.length === 0) return;
+  puntosNuevos.pop();
+  const ultimoMarcador = marcadoresTemp.pop();
+  if(ultimoMarcador) map.removeLayer(ultimoMarcador);
+  if(lineaTemp){ map.removeLayer(lineaTemp); lineaTemp = null; }
+  if(puntosNuevos.length > 1){
+    lineaTemp = L.polyline(puntosNuevos, { color:'#378ADD', weight:4, dashArray:'6,6' }).addTo(map);
+  }
+});
 
 map.on('click', (e)=>{
   if(!dibujando) return;
