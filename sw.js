@@ -1,10 +1,11 @@
 const CACHE_TILES = 'senderos-tiles-v1';
-const CACHE_SHELL = 'senderos-shell-v4';
+const CACHE_SHELL = 'senderos-shell-v5';
 const PAGINA_PRINCIPAL = './index.html';
+const ARCHIVOS_APP = [PAGINA_PRINCIPAL, './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_SHELL).then(cache => cache.add(PAGINA_PRINCIPAL)).catch(err => console.warn('No se pudo guardar la app', err))
+    caches.open(CACHE_SHELL).then(cache => cache.addAll(ARCHIVOS_APP)).catch(err => console.warn('No se pudo guardar la app', err))
   );
   self.skipWaiting();
 });
