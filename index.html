@@ -169,6 +169,18 @@
   .leaflet-popup-tip{background:var(--panel);}
   .leaflet-popup-content{font-size:12.5px;margin:10px 12px;}
   .leaflet-popup-content b{display:block;margin-bottom:3px;}
+
+  .popup-acciones .leaflet-popup-content-wrapper{ padding:4px; border-radius:14px; }
+  .popup-acciones .leaflet-popup-content{ margin:2px; }
+  .popup-acciones .leaflet-popup-tip{ display:none; }
+  .fila-iconos{ display:flex; gap:8px; }
+  .icono-accion{
+    width:42px;height:42px;border-radius:50%;border:none;
+    display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:white;
+  }
+  .icono-borrar{ background:#E53935; }
+  .icono-navegar{ background:#378ADD; }
 </style>
 </head>
 <body>
@@ -321,11 +333,7 @@ function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, aten
       L.DomEvent.preventDefault(e);
       if(dibujando) return; // en modo dibujo, la pulsación larga sobre un camino no hace nada
       zonaToque.closePopup();
-      if(opciones.idUsuario){
-        mostrarConfirmacionBorrar(entry);
-      } else {
-        mostrarConfirmacionNavegar(e.latlng);
-      }
+      mostrarMenuAcciones(e.latlng, entry);
     });
   }
 
@@ -334,19 +342,18 @@ function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, aten
   return entry;
 }
 
-function mostrarConfirmacionBorrar(entry){
-  if(confirm('¿Eliminar este camino que marcaste?')){
-    map.removeLayer(entry.group);
-    const idx = todosLosCaminos.indexOf(entry);
-    if(idx > -1) todosLosCaminos.splice(idx, 1);
-    eliminarPistaUsuarioPorId(entry.idUsuario);
-  }
+function borrarCamino(entry){
+  map.closePopup();
+  map.removeLayer(entry.group);
+  const idx = todosLosCaminos.indexOf(entry);
+  if(idx > -1) todosLosCaminos.splice(idx, 1);
+  eliminarPistaUsuarioPorId(entry.idUsuario);
 }
 
-async function mostrarConfirmacionNavegar(latlng){
-  if(!confirm('¿Quieres navegar hasta este punto?')) return;
+async function navegarHastaPunto(latlng){
+  map.closePopup();
   if(!userMarker){
-    alert('Aún no se ha detectado tu posición GPS.');
+    mostrarAvisoOsm('Aún no se ha detectado tu posición GPS', true);
     return;
   }
   mostrarAvisoOsm('Calculando ruta hasta el punto…');
@@ -358,6 +365,28 @@ async function mostrarConfirmacionNavegar(latlng){
   } else {
     mostrarAvisoOsm('No se pudo calcular la ruta hasta ahí', true);
   }
+}
+
+function mostrarMenuAcciones(latlng, entry){
+  const esPropio = !!(entry && entry.idUsuario);
+  const uid = Date.now();
+  const idBorrar = 'accB' + uid;
+  const idNavegar = 'accN' + uid;
+  const html = `<div class="fila-iconos">
+    ${esPropio ? `<button id="${idBorrar}" class="icono-accion icono-borrar">🗑</button>` : ''}
+    <button id="${idNavegar}" class="icono-accion icono-navegar">➤</button>
+  </div>`;
+  L.popup({ closeButton:false, className:'popup-acciones', offset:[0,-4] })
+    .setLatLng(latlng).setContent(html).openOn(map);
+
+  setTimeout(()=>{
+    if(esPropio){
+      const btnB = document.getElementById(idBorrar);
+      if(btnB) btnB.addEventListener('click', ()=> borrarCamino(entry));
+    }
+    const btnN = document.getElementById(idNavegar);
+    if(btnN) btnN.addEventListener('click', ()=> navegarHastaPunto(latlng));
+  }, 0);
 }
 
 function aplicarEstiloAUnCamino(entry, zoom){
@@ -542,7 +571,16 @@ cargarCaminosOsmEnVista();
 // ---- Pistas guardadas por el usuario (localStorage) ----
 const STORAGE_KEY = 'senderos_pistas_usuario';
 function cargarPistasUsuario(){
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  try {
+    const datos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    // Migración: pistas guardadas antes de tener id, para que ahora se puedan borrar
+    let huboMigracion = false;
+    datos.forEach((p, i) => {
+      if(!p.idUsuario){ p.idUsuario = 'p' + Date.now() + '_' + i; huboMigracion = true; }
+    });
+    if(huboMigracion){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(datos)); }catch(e){} }
+    return datos;
+  }
   catch(e){ return []; }
 }
 function guardarPistaUsuario(p){
