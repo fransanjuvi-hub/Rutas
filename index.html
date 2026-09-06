@@ -185,9 +185,7 @@
 </head>
 <body>
 
-<div id="mapRotWrapper" style="position:absolute; top:50%; left:50%; width:150%; height:150%; margin-left:-75%; margin-top:-75%; transform-origin:center center;">
-  <div id="map" style="position:absolute; inset:0;"></div>
-</div>
+<div id="map"></div>
 
 <div class="topbar-left">
   <button class="info-toggle" id="infoToggle" title="Rumbo y trip">›</button>
@@ -614,7 +612,10 @@ cargarPistasUsuario().forEach(renderPista);
 // ---- Ubicación GPS real ----
 const userIcon = L.divIcon({
   className:'',
-  html:'<div style="width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid white;box-shadow:0 0 0 6px rgba(55,138,221,.25);"></div>',
+  html:`<div style="position:relative;width:16px;height:16px;">
+          <div style="width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid white;box-shadow:0 0 0 6px rgba(55,138,221,.25);"></div>
+          <div id="flechaRumbo" style="position:absolute;top:-16px;left:2px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid #378ADD;transform-origin:6px 20px;filter:drop-shadow(0 0 1px white);"></div>
+        </div>`,
   iconSize:[16,16], iconAnchor:[8,8]
 });
 let userMarker = null;
@@ -651,12 +652,10 @@ function onPos(pos){
     rumboEl.textContent = '--';
   }
 
-  // Modo rumbo arriba: rotar el mapa y mantenerte siempre centrado
-  if(modoRumboArriba){
-    if(heading!=null && !isNaN(heading)){
-      document.getElementById('mapRotWrapper').style.transform = `rotate(${-heading}deg)`;
-    }
-    map.setView(latlng, map.getZoom(), { animate:false });
+  // Flecha de rumbo: gira sobre sí misma según tu dirección, sin mover ni girar el mapa
+  if(heading!=null && !isNaN(heading)){
+    const flecha = document.getElementById('flechaRumbo');
+    if(flecha) flecha.style.transform = `rotate(${heading}deg)`;
   }
 
   // Trip: distancia acumulada desde el último reinicio
@@ -907,7 +906,6 @@ function abrirMenu(){
     <button data-action="buscar">🔍 Buscar lugar</button>
     <button data-action="locate">📍 Mi posición</button>
     <button data-action="draw">✎ Marcar camino</button>
-    <button data-action="rumbo-toggle">🧭 ${modoRumboArriba ? 'Desactivar' : 'Activar'} rumbo arriba</button>
     <button data-action="descargar-offline">⬇ Descargar zona (offline)</button>
     ${trackCargado
       ? `<button data-action="gpx-invertir">🔁 Invertir track</button><button data-action="gpx-otro">🧭 Cargar otro track</button><button data-action="gpx-quitar" class="quitar">🗑 Quitar track</button>`
@@ -915,19 +913,6 @@ function abrirMenu(){
   `;
   menuPanel.classList.add('show');
   menuBtn.classList.add('active');
-}
-
-let modoRumboArriba = false;
-
-function activarRumboArriba(activo){
-  modoRumboArriba = activo;
-  if(activo){
-    map.dragging.disable();
-    if(userMarker) map.setView(userMarker.getLatLng(), map.getZoom(), { animate:false });
-  } else {
-    map.dragging.enable();
-    document.getElementById('mapRotWrapper').style.transform = 'rotate(0deg)';
-  }
 }
 
 function cerrarMenu(){
@@ -967,7 +952,6 @@ menuPanel.addEventListener('click', (e)=>{
   else if(accion === 'gpx-quitar') quitarGpx();
   else if(accion === 'gpx-invertir') invertirGpx();
   else if(accion === 'descargar-offline') descargarZonaOffline();
-  else if(accion === 'rumbo-toggle') activarRumboArriba(!modoRumboArriba);
   else if(accion === 'buscar') buscarLugar();
 });
 
