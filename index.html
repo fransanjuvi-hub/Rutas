@@ -419,31 +419,48 @@ function estimarPista(tags){
   const soloTodoterreno = tags['4wd_only'] === 'yes';
   const tieneVado = tags.ford === 'yes';
 
+  const TEXTO_TRACKTYPE = {
+    grade1:'pista sólida y bien afirmada', grade2:'pista bastante sólida',
+    grade3:'pista mixta (tierra y piedra)', grade4:'pista poco firme',
+    grade5:'pista muy blanda o poco definida'
+  };
+  const TEXTO_SMOOTHNESS = {
+    excellent:'superficie excelente', good:'superficie en buen estado',
+    intermediate:'superficie irregular', bad:'superficie en mal estado',
+    very_bad:'superficie muy deteriorada', horrible:'superficie muy difícil',
+    very_horrible:'superficie extrema', impassable:'intransitable'
+  };
+  const TEXTO_SURFACE = {
+    compacted:'firme compactado', gravel:'grava', fine_gravel:'gravilla fina',
+    ground:'tierra', dirt:'tierra suelta', unpaved:'sin asfaltar',
+    rock:'roca', mud:'barro', sand:'arena', stone:'piedra'
+  };
+
   // Un camino asfaltado no es offroad: nunca se colorea, se deja sin determinar
   const esAsfaltado = ['asphalt','paved','concrete','paving_stones'].includes(surface);
   if(esAsfaltado){
     return { dificultad:'gris', legal:'gris', motivos:['Firme asfaltado: no se clasifica como pista offroad'] };
   }
 
-  if(smoothness){
-    if(['excellent','good'].includes(smoothness)){ dificultad='verde'; motivos.push('smoothness: '+smoothness); }
-    else if(['intermediate'].includes(smoothness)){ dificultad='amarillo'; motivos.push('smoothness: '+smoothness); }
-    else if(['bad','very_bad','horrible','very_horrible','impassable'].includes(smoothness)){ dificultad='rojo'; motivos.push('smoothness: '+smoothness); }
+  if(smoothness && TEXTO_SMOOTHNESS[smoothness]){
+    if(['excellent','good'].includes(smoothness)){ dificultad='verde'; motivos.push(TEXTO_SMOOTHNESS[smoothness]); }
+    else if(smoothness === 'intermediate'){ dificultad='amarillo'; motivos.push(TEXTO_SMOOTHNESS[smoothness]); }
+    else if(['bad','very_bad','horrible','very_horrible','impassable'].includes(smoothness)){ dificultad='rojo'; motivos.push(TEXTO_SMOOTHNESS[smoothness]); }
   }
-  if(dificultad === null && tracktype){
-    if(tracktype === 'grade1' || tracktype === 'grade2'){ dificultad = 'verde'; motivos.push('tracktype: '+tracktype); }
-    else if(tracktype === 'grade3'){ dificultad = 'amarillo'; motivos.push('tracktype: '+tracktype); }
-    else if(tracktype === 'grade4' || tracktype === 'grade5'){ dificultad = 'rojo'; motivos.push('tracktype: '+tracktype); }
+  if(dificultad === null && tracktype && TEXTO_TRACKTYPE[tracktype]){
+    if(tracktype === 'grade1' || tracktype === 'grade2'){ dificultad = 'verde'; motivos.push(TEXTO_TRACKTYPE[tracktype]); }
+    else if(tracktype === 'grade3'){ dificultad = 'amarillo'; motivos.push(TEXTO_TRACKTYPE[tracktype]); }
+    else if(tracktype === 'grade4' || tracktype === 'grade5'){ dificultad = 'rojo'; motivos.push(TEXTO_TRACKTYPE[tracktype]); }
   }
-  if(dificultad === null && surface){
-    if(['compacted'].includes(surface)){ dificultad='verde'; motivos.push('firme: '+surface); }
-    else if(['gravel','fine_gravel','ground','dirt','unpaved'].includes(surface)){ dificultad='amarillo'; motivos.push('firme: '+surface); }
-    else if(['rock','mud','sand','stone'].includes(surface)){ dificultad='rojo'; motivos.push('firme: '+surface); }
+  if(dificultad === null && surface && TEXTO_SURFACE[surface]){
+    if(surface === 'compacted'){ dificultad='verde'; motivos.push(TEXTO_SURFACE[surface]); }
+    else if(['gravel','fine_gravel','ground','dirt','unpaved'].includes(surface)){ dificultad='amarillo'; motivos.push(TEXTO_SURFACE[surface]); }
+    else if(['rock','mud','sand','stone'].includes(surface)){ dificultad='rojo'; motivos.push(TEXTO_SURFACE[surface]); }
   }
-  if(soloTodoterreno){ dificultad = 'rojo'; motivos.push('marcado como solo todoterreno'); }
-  if(tieneVado){ dificultad = 'rojo'; motivos.push('tiene vado/cruce de agua'); }
+  if(soloTodoterreno){ dificultad = 'rojo'; motivos.push('solo apto para todoterreno'); }
+  if(tieneVado){ dificultad = 'rojo'; motivos.push('tiene vado o cruce de agua'); }
 
-  if(!isNaN(width)){ legal = width >= 4 ? 'verde' : 'rojo'; motivos.push('ancho: '+width+'m'); }
+  if(!isNaN(width)){ legal = width >= 4 ? 'verde' : 'rojo'; motivos.push('ancho: ' + width + ' m'); }
   if(access === 'no' || access === 'private' || motorVehicle === 'no' || motorVehicle === 'private'){
     legal = 'rojo'; motivos.push('acceso restringido');
   }
