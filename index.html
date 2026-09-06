@@ -93,6 +93,13 @@
     border:none !important;padding:6px 10px !important;border-radius:8px !important;
     font-size:11px !important;
   }
+  .leaflet-control-attribution{
+    font-size:8px !important;line-height:1.2 !important;
+    background:rgba(21,26,20,0.55) !important;color:rgba(255,255,255,0.6) !important;
+    padding:1px 4px !important;border-radius:4px !important;
+    max-width:150px;
+  }
+  .leaflet-control-attribution a{ color:rgba(255,255,255,0.75) !important; }
 
 
   .info-toggle{
@@ -527,20 +534,12 @@ function bboxCubierto(actual, anterior){
 }
 
 async function cargarCaminosOsmEnVista(){
-  if(map.getZoom() < 13){
-    mostrarAvisoOsm('Acércate más (zoom) para ver los caminos de la zona');
-    return;
-  }
+  if(map.getZoom() < 13) return;
   const b = map.getBounds();
   const desdeCache = renderizarDesdeCacheOsm(b);
-  if(desdeCache > 0) mostrarAvisoOsm(`${desdeCache} caminos cargados (guardados)`, true);
 
   if(bboxCubierto(b, ultimoBboxConsultado)) return; // ya consultamos esta zona hace poco
-
-  if(!navigator.onLine){
-    if(desdeCache === 0) mostrarAvisoOsm('Sin conexión: no hay caminos guardados de esta zona', true);
-    return;
-  }
+  if(!navigator.onLine) return;
 
   const bAmpliado = b.pad(0.3); // margen extra para cubrir movimientos cercanos sin repetir consulta
   const bbox = `${bAmpliado.getSouth()},${bAmpliado.getWest()},${bAmpliado.getNorth()},${bAmpliado.getEast()}`;
@@ -550,7 +549,6 @@ async function cargarCaminosOsmEnVista(){
     'https://overpass.kumi.systems/api/interpreter',
     'https://overpass.openstreetmap.ru/api/interpreter'
   ];
-  if(desdeCache === 0) mostrarAvisoOsm('Buscando caminos en esta zona…');
   for(const servidor of servidores){
     try{
       const resp = await fetch(servidor + '?data=' + encodeURIComponent(query));
@@ -558,22 +556,18 @@ async function cargarCaminosOsmEnVista(){
       const data = await resp.json();
       guardarEnCacheOsm(data.elements || []);
       ultimoBboxConsultado = bAmpliado;
-      let nuevos = 0;
       (data.elements || []).forEach(way=>{
         if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
         idsOsmRenderizados.add(way.id);
         const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
         const { dificultad, legal, motivos } = estimarPista(way.tags || {});
         renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
-        nuevos++;
       });
-      if(nuevos > 0) mostrarAvisoOsm(`${nuevos} caminos nuevos`, true);
       return;
     }catch(e){
       console.warn('Fallo con ' + servidor, e);
     }
   }
-  if(desdeCache === 0) mostrarAvisoOsm('No se pudo conectar con OpenStreetMap ahora mismo', true);
 }
 
 map.on('moveend', ()=>{
@@ -885,6 +879,14 @@ elEscala.style.position = 'absolute';
 elEscala.style.left = '64px';
 elEscala.style.bottom = '16px';
 elEscala.style.margin = '0';
+
+const elAtribucion = document.querySelector('.leaflet-control-attribution');
+if(elAtribucion){
+  elAtribucion.style.position = 'absolute';
+  elAtribucion.style.left = '14px';
+  elAtribucion.style.bottom = '54px';
+  elAtribucion.style.margin = '0';
+}
 
 // ---- Menú único desplegable ----
 function irAMiPosicion(){
