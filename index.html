@@ -408,33 +408,55 @@ let timeoutCargaOsm = null;
 function estimarPista(tags){
   let dificultad = null;
   let legal = null;
+  const motivos = [];
 
   const tracktype = tags.tracktype;
   const surface = tags.surface;
+  const smoothness = tags.smoothness;
   const width = parseFloat(tags.width);
   const access = tags.access;
   const motorVehicle = tags.motor_vehicle || tags.motorcar;
+  const soloTodoterreno = tags['4wd_only'] === 'yes';
+  const tieneVado = tags.ford === 'yes';
 
-  if(tracktype === 'grade1' || tracktype === 'grade2') dificultad = 'verde';
-  else if(tracktype === 'grade3') dificultad = 'amarillo';
-  else if(tracktype === 'grade4' || tracktype === 'grade5') dificultad = 'rojo';
-  else if(surface){
-    if(['asphalt','paved','concrete','paving_stones','compacted'].includes(surface)) dificultad='verde';
-    else if(['gravel','fine_gravel','ground','dirt','unpaved'].includes(surface)) dificultad='amarillo';
-    else if(['rock','mud','sand','stone'].includes(surface)) dificultad='rojo';
+  // Un camino asfaltado no es offroad: nunca se colorea, se deja sin determinar
+  const esAsfaltado = ['asphalt','paved','concrete','paving_stones'].includes(surface);
+  if(esAsfaltado){
+    return { dificultad:'gris', legal:'gris', motivos:['Firme asfaltado: no se clasifica como pista offroad'] };
   }
 
-  if(!isNaN(width)) legal = width >= 4 ? 'verde' : 'rojo';
-  if(access === 'no' || access === 'private' || motorVehicle === 'no' || motorVehicle === 'private') legal = 'rojo';
+  if(smoothness){
+    if(['excellent','good'].includes(smoothness)){ dificultad='verde'; motivos.push('smoothness: '+smoothness); }
+    else if(['intermediate'].includes(smoothness)){ dificultad='amarillo'; motivos.push('smoothness: '+smoothness); }
+    else if(['bad','very_bad','horrible','very_horrible','impassable'].includes(smoothness)){ dificultad='rojo'; motivos.push('smoothness: '+smoothness); }
+  }
+  if(dificultad === null && tracktype){
+    if(tracktype === 'grade1' || tracktype === 'grade2'){ dificultad = 'verde'; motivos.push('tracktype: '+tracktype); }
+    else if(tracktype === 'grade3'){ dificultad = 'amarillo'; motivos.push('tracktype: '+tracktype); }
+    else if(tracktype === 'grade4' || tracktype === 'grade5'){ dificultad = 'rojo'; motivos.push('tracktype: '+tracktype); }
+  }
+  if(dificultad === null && surface){
+    if(['compacted'].includes(surface)){ dificultad='verde'; motivos.push('firme: '+surface); }
+    else if(['gravel','fine_gravel','ground','dirt','unpaved'].includes(surface)){ dificultad='amarillo'; motivos.push('firme: '+surface); }
+    else if(['rock','mud','sand','stone'].includes(surface)){ dificultad='rojo'; motivos.push('firme: '+surface); }
+  }
+  if(soloTodoterreno){ dificultad = 'rojo'; motivos.push('marcado como solo todoterreno'); }
+  if(tieneVado){ dificultad = 'rojo'; motivos.push('tiene vado/cruce de agua'); }
+
+  if(!isNaN(width)){ legal = width >= 4 ? 'verde' : 'rojo'; motivos.push('ancho: '+width+'m'); }
+  if(access === 'no' || access === 'private' || motorVehicle === 'no' || motorVehicle === 'private'){
+    legal = 'rojo'; motivos.push('acceso restringido');
+  }
   if(legal === null && dificultad !== null) legal = 'amarillo'; // hay datos de dificultad pero no de anchura: revisar
 
-  return { dificultad: dificultad || 'gris', legal: legal || 'gris' };
+  return { dificultad: dificultad || 'gris', legal: legal || 'gris', motivos };
 }
 
-function renderCaminoOsm(coords, dificultad, legal, tags){
+function renderCaminoOsm(coords, dificultad, legal, tags, motivos){
   const colorInt = dificultad === 'gris' ? COLOR_GRIS : COLORS[dificultad];
   const colorCont = legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal];
-  const etiqueta = dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática · revisar sobre el terreno`;
+  const detalle = (motivos && motivos.length) ? motivos.join(' · ') : 'Sin datos suficientes';
+  const etiqueta = dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática (${detalle}) · revisar sobre el terreno`;
   const popup = `<b>${tags.name || 'Camino sin nombre'}</b>${etiqueta}`;
   crearCaminoVisual(coords, colorCont, colorInt, popup, dificultad==='gris');
 }
@@ -472,8 +494,8 @@ function renderizarDesdeCacheOsm(b){
     if(idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
     idsOsmRenderizados.add(way.id);
     const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-    const { dificultad, legal } = estimarPista(way.tags || {});
-    renderCaminoOsm(coords, dificultad, legal, way.tags || {});
+    const { dificultad, legal, motivos } = estimarPista(way.tags || {});
+    renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
     añadidos++;
   });
   return añadidos;
@@ -524,8 +546,8 @@ async function cargarCaminosOsmEnVista(){
         if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
         idsOsmRenderizados.add(way.id);
         const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-        const { dificultad, legal } = estimarPista(way.tags || {});
-        renderCaminoOsm(coords, dificultad, legal, way.tags || {});
+        const { dificultad, legal, motivos } = estimarPista(way.tags || {});
+        renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
         nuevos++;
       });
       if(nuevos > 0) mostrarAvisoOsm(`${nuevos} caminos nuevos`, true);
