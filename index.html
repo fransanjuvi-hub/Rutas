@@ -254,6 +254,8 @@ const capaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/se
 });
 
 capaMinimal.addTo(map); // estilo por defecto: limpio y minimalista
+let capaActiva = capaMinimal;
+map.on('baselayerchange', (e)=>{ capaActiva = e.layer; });
 
 const controlCapas = L.control.layers({
   'Minimalista': capaMinimal,
@@ -312,10 +314,12 @@ function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, aten
 
   if(popupHtml){
     zonaToque.on('click', (e)=>{
+      if(dibujando){ agregarPuntoDibujo(e.latlng); return; }
       zonaToque.bindPopup(popupHtml).openPopup(e.latlng);
     });
     zonaToque.on('contextmenu', (e)=>{
       L.DomEvent.preventDefault(e);
+      if(dibujando) return; // en modo dibujo, la pulsación larga sobre un camino no hace nada
       zonaToque.closePopup();
       if(opciones.idUsuario){
         mostrarConfirmacionBorrar(entry);
@@ -471,6 +475,14 @@ function renderizarDesdeCacheOsm(b){
   return añadidos;
 }
 
+let ultimoBboxConsultado = null;
+
+function bboxCubierto(actual, anterior){
+  if(!anterior) return false;
+  return actual.getSouth() >= anterior.getSouth() && actual.getNorth() <= anterior.getNorth()
+      && actual.getWest()  >= anterior.getWest()  && actual.getEast() <= anterior.getEast();
+}
+
 async function cargarCaminosOsmEnVista(){
   if(map.getZoom() < 13){
     mostrarAvisoOsm('Acércate más (zoom) para ver los caminos de la zona');
@@ -480,12 +492,15 @@ async function cargarCaminosOsmEnVista(){
   const desdeCache = renderizarDesdeCacheOsm(b);
   if(desdeCache > 0) mostrarAvisoOsm(`${desdeCache} caminos cargados (guardados)`, true);
 
+  if(bboxCubierto(b, ultimoBboxConsultado)) return; // ya consultamos esta zona hace poco
+
   if(!navigator.onLine){
     if(desdeCache === 0) mostrarAvisoOsm('Sin conexión: no hay caminos guardados de esta zona', true);
     return;
   }
 
-  const bbox = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+  const bAmpliado = b.pad(0.3); // margen extra para cubrir movimientos cercanos sin repetir consulta
+  const bbox = `${bAmpliado.getSouth()},${bAmpliado.getWest()},${bAmpliado.getNorth()},${bAmpliado.getEast()}`;
   const query = `[out:json][timeout:25];(way["highway"~"^(track|path|bridleway|unclassified)$"](${bbox});); out geom;`;
   const servidores = [
     'https://overpass-api.de/api/interpreter',
@@ -499,6 +514,7 @@ async function cargarCaminosOsmEnVista(){
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       guardarEnCacheOsm(data.elements || []);
+      ultimoBboxConsultado = bAmpliado;
       let nuevos = 0;
       (data.elements || []).forEach(way=>{
         if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
@@ -561,6 +577,7 @@ function distanciaKm(a, b){
 }
 
 function onPos(pos){
+  avisoGpsActivo = false;
   const { latitude, longitude, speed, heading } = pos.coords;
   const latlng = [latitude, longitude];
   if(!userMarker){
@@ -596,9 +613,20 @@ function onErr(err){
   alert('GPS: ' + (motivos[err.code] || err.message));
 }
 
+let avisoGpsActivo = false;
+function onErrWatch(err){
+  const motivos = {1:'Permiso denegado', 2:'Señal GPS perdida', 3:'Buscando señal GPS…'};
+  document.getElementById('speedVal').textContent = '--';
+  console.warn('GPS (watch) error:', motivos[err.code] || err.message);
+  if(!avisoGpsActivo){
+    avisoGpsActivo = true;
+    mostrarAvisoOsm(motivos[err.code] || 'GPS: señal perdida');
+  }
+}
+
 if('geolocation' in navigator){
   navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
-  navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
+  navigator.geolocation.watchPosition(onPos, onErrWatch, { enableHighAccuracy:true, timeout:10000 });
 } else {
   alert('Este navegador no soporta geolocalización');
 }
@@ -640,7 +668,7 @@ async function descargarZonaOffline(){
     const yMin = lat2tile(b.getNorth(), z), yMax = lat2tile(b.getSouth(), z);
     for(let x=xMin; x<=xMax; x++){
       for(let y=yMin; y<=yMax; y++){
-        urls.push(`https://api.maptiler.com/maps/streets-v2/${z}/${x}/${y}@2x.png?key=${MAPTILER_KEY}`);
+        urls.push(capaActiva.getTileUrl({x, y, z}));
       }
     }
   });
@@ -716,6 +744,7 @@ map.on('zoomend', actualizarFlechasGpx);
 function dibujarGpx(coords, nombre){
   if(capaGpx){ map.removeLayer(capaGpx); }
   gpxActual = { nombre, coords };
+  try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify(gpxActual)); }catch(err){}
   capaGpx = L.layerGroup().addTo(map);
   L.polyline(coords, { color:'#ffffff', weight:6, opacity:0.9, lineCap:'round' }).addTo(capaGpx);
   L.polyline(coords, { color:'#8A3FFC', weight:3, opacity:1, lineCap:'round' }).addTo(capaGpx);
@@ -728,9 +757,7 @@ function dibujarGpx(coords, nombre){
 
 function invertirGpx(){
   if(!gpxActual) return;
-  const coordsInvertidas = gpxActual.coords.slice().reverse();
-  dibujarGpx(coordsInvertidas, gpxActual.nombre);
-  try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify(gpxActual)); }catch(err){}
+  dibujarGpx(gpxActual.coords.slice().reverse(), gpxActual.nombre);
 }
 
 function quitarGpx(){
@@ -760,7 +787,6 @@ document.getElementById('gpxInput').addEventListener('change', (e)=>{
       return;
     }
     dibujarGpx(coords, file.name.replace('.gpx',''));
-    try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify({ nombre:file.name, coords })); }catch(err){}
   };
   reader.readAsText(file);
   e.target.value = '';
@@ -903,15 +929,19 @@ document.getElementById('btnDeshacerPunto').addEventListener('click', ()=>{
   }
 });
 
-map.on('click', (e)=>{
-  if(!dibujando) return;
-  puntosNuevos.push([e.latlng.lat, e.latlng.lng]);
-  const punto = L.circleMarker(e.latlng, { radius:5, color:'#378ADD', fillColor:'#378ADD', fillOpacity:1 }).addTo(map);
+function agregarPuntoDibujo(latlng){
+  puntosNuevos.push([latlng.lat, latlng.lng]);
+  const punto = L.circleMarker(latlng, { radius:5, color:'#378ADD', fillColor:'#378ADD', fillOpacity:1 }).addTo(map);
   marcadoresTemp.push(punto);
   if(lineaTemp) map.removeLayer(lineaTemp);
   if(puntosNuevos.length > 1){
     lineaTemp = L.polyline(puntosNuevos, { color:'#378ADD', weight:4, dashArray:'6,6' }).addTo(map);
   }
+}
+
+map.on('click', (e)=>{
+  if(!dibujando) return;
+  agregarPuntoDibujo(e.latlng);
 });
 
 let dificultadSel = 'verde';
