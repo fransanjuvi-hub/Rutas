@@ -185,7 +185,9 @@
 </head>
 <body>
 
-<div id="map"></div>
+<div id="mapRotWrapper" style="position:absolute; top:50%; left:50%; width:150%; height:150%; margin-left:-75%; margin-top:-75%; transform-origin:center center;">
+  <div id="map" style="position:absolute; inset:0;"></div>
+</div>
 
 <div class="topbar-left">
   <button class="info-toggle" id="infoToggle" title="Rumbo y trip">›</button>
@@ -649,6 +651,14 @@ function onPos(pos){
     rumboEl.textContent = '--';
   }
 
+  // Modo rumbo arriba: rotar el mapa y mantenerte siempre centrado
+  if(modoRumboArriba){
+    if(heading!=null && !isNaN(heading)){
+      document.getElementById('mapRotWrapper').style.transform = `rotate(${-heading}deg)`;
+    }
+    map.setView(latlng, map.getZoom(), { animate:false });
+  }
+
   // Trip: distancia acumulada desde el último reinicio
   if(ultimaPosTrip){
     const d = distanciaKm(ultimaPosTrip, latlng);
@@ -897,6 +907,7 @@ function abrirMenu(){
     <button data-action="buscar">🔍 Buscar lugar</button>
     <button data-action="locate">📍 Mi posición</button>
     <button data-action="draw">✎ Marcar camino</button>
+    <button data-action="rumbo-toggle">🧭 ${modoRumboArriba ? 'Desactivar' : 'Activar'} rumbo arriba</button>
     <button data-action="descargar-offline">⬇ Descargar zona (offline)</button>
     ${trackCargado
       ? `<button data-action="gpx-invertir">🔁 Invertir track</button><button data-action="gpx-otro">🧭 Cargar otro track</button><button data-action="gpx-quitar" class="quitar">🗑 Quitar track</button>`
@@ -904,6 +915,19 @@ function abrirMenu(){
   `;
   menuPanel.classList.add('show');
   menuBtn.classList.add('active');
+}
+
+let modoRumboArriba = false;
+
+function activarRumboArriba(activo){
+  modoRumboArriba = activo;
+  if(activo){
+    map.dragging.disable();
+    if(userMarker) map.setView(userMarker.getLatLng(), map.getZoom(), { animate:false });
+  } else {
+    map.dragging.enable();
+    document.getElementById('mapRotWrapper').style.transform = 'rotate(0deg)';
+  }
 }
 
 function cerrarMenu(){
@@ -943,6 +967,7 @@ menuPanel.addEventListener('click', (e)=>{
   else if(accion === 'gpx-quitar') quitarGpx();
   else if(accion === 'gpx-invertir') invertirGpx();
   else if(accion === 'descargar-offline') descargarZonaOffline();
+  else if(accion === 'rumbo-toggle') activarRumboArriba(!modoRumboArriba);
   else if(accion === 'buscar') buscarLugar();
 });
 
