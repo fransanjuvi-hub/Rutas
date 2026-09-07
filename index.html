@@ -254,7 +254,7 @@
 // ---- Centro inicial: Biar (Alicante) ----
 const START = [38.6330, -0.7667];
 
-const map = L.map('map', { zoomControl:false, preferCanvas:true }).setView(START, 14);
+const map = L.map('map', { zoomControl:false, preferCanvas:true, zoomSnap:0, zoomDelta:1 }).setView(START, 14);
 
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js').catch(err => console.warn('No se pudo activar el modo offline', err));
@@ -284,6 +284,43 @@ const controlCapas = L.control.layers({
 
 L.control.zoom({ position:'bottomright' }).addTo(map);
 
+// ---- Zoom en pasos de 100m con los botones, en el rango cercano a 1km ----
+function metrosPorPixel(zoom, lat){
+  return 156543.03392 * Math.cos(lat * Math.PI/180) / Math.pow(2, zoom);
+}
+function zoomParaDistancia(distanciaMetros, lat){
+  return Math.log2(156543.03392 * Math.cos(lat * Math.PI/180) * 100 / distanciaMetros);
+}
+function escalaActualMetros(){
+  return metrosPorPixel(map.getZoom(), map.getCenter().lat) * 100;
+}
+function zoomConPasoFino(sentido){ // sentido: +1 acercar, -1 alejar
+  const lat = map.getCenter().lat;
+  const escala = escalaActualMetros();
+  if(escala >= 50 && escala <= 5000){
+    const actualRedondeado = Math.round(escala / 100) * 100;
+    const nuevaDistancia = actualRedondeado - sentido * 100;
+    if(nuevaDistancia >= 50){
+      map.setZoom(zoomParaDistancia(nuevaDistancia, lat));
+      return;
+    }
+  }
+  if(sentido > 0) map.zoomIn(); else map.zoomOut();
+}
+
+setTimeout(()=>{
+  const btnIn = document.querySelector('.leaflet-control-zoom-in');
+  const btnOut = document.querySelector('.leaflet-control-zoom-out');
+  if(btnIn){
+    L.DomEvent.off(btnIn, 'click');
+    L.DomEvent.on(btnIn, 'click', (e)=>{ L.DomEvent.stop(e); zoomConPasoFino(1); });
+  }
+  if(btnOut){
+    L.DomEvent.off(btnOut, 'click');
+    L.DomEvent.on(btnOut, 'click', (e)=>{ L.DomEvent.stop(e); zoomConPasoFino(-1); });
+  }
+}, 0);
+
 const COLORS = { verde:'#4C8A22', amarillo:'#FFD400', rojo:'#E53935' };
 const COLORS_CONTORNO = { verde:'#4C8A22', amarillo:'#D98A00', rojo:'#A11E1E' };
 
@@ -293,9 +330,9 @@ const todosLosCaminos = []; // { group, casing, gap, interior, zonaToque }
 
 function pesosPorZoom(z){
   if(z <= 12) return null; // oculto (escala ~2km o más alejado)
-  if(z === 13) return { casing:2.6, gap:1.4, interior:0.8, toque:14 }; // ~1.5km, fino
-  if(z === 14) return { casing:3.6, gap:2, interior:1.1, toque:17 };
-  if(z === 15) return { casing:4.8, gap:2.7, interior:1.4, toque:20 };
+  if(z < 14) return { casing:2.6, gap:1.4, interior:0.8, toque:14 }; // ~1.5km, fino
+  if(z < 15) return { casing:3.6, gap:2, interior:1.1, toque:17 };
+  if(z < 16) return { casing:4.8, gap:2.7, interior:1.4, toque:20 };
   return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16+
 }
 
@@ -775,9 +812,9 @@ function iconoFlecha(angulo, tam){
 // A más zoom (más cerca), flechas más pequeñas pero más numerosas; al alejar, más grandes hasta un tamaño máximo
 function parametrosFlechasPorZoom(z){
   if(z <= 13) return { tam:13, factorDensidad:12 };
-  if(z === 14) return { tam:11, factorDensidad:8 };
-  if(z === 15) return { tam:10, factorDensidad:5 };
-  if(z === 16) return { tam:9,  factorDensidad:3 };
+  if(z < 15) return { tam:11, factorDensidad:8 };
+  if(z < 16) return { tam:10, factorDensidad:5 };
+  if(z < 17) return { tam:9,  factorDensidad:3 };
   return { tam:8, factorDensidad:2 }; // zoom 17+
 }
 
