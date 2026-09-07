@@ -114,7 +114,7 @@
   .info-toggle.abierto{ transform:rotate(180deg); }
 
   .btn-grabar{
-    position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:1400;
+    position:absolute;top:14px;right:78px;z-index:1400;
     width:40px;height:40px;border-radius:50%;border:none;
     background:var(--panel);color:#E53935;font-size:18px;
     display:flex;align-items:center;justify-content:center;
@@ -130,6 +130,14 @@
     display:none;
   }
   .destino-box.show{ display:block; }
+
+  .giro-box{
+    position:absolute;left:14px;top:150px;z-index:1300;
+    background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:10px;
+    font-size:14px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.35);
+    display:none;
+  }
+  .giro-box.show{ display:block; }
 
   .info-panel{
     display:none;gap:8px;
@@ -232,6 +240,7 @@
 
 <div class="aviso-osm" id="avisoOsm"></div>
 <div class="destino-box" id="destinoBox"></div>
+<div class="giro-box" id="giroBox"></div>
 
 <div class="draw-toolbar" id="drawToolbar">
   <span id="drawHint">Toca el mapa para marcar el camino</span>
@@ -280,6 +289,20 @@ const map = L.map('map', { zoomControl:false, preferCanvas:true, zoomSnap:0, zoo
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('./sw.js').catch(err => console.warn('No se pudo activar el modo offline', err));
 }
+
+// ---- Mantener la pantalla encendida mientras se usa la app ----
+let bloqueoPantalla = null;
+async function mantenerPantallaEncendida(){
+  try{
+    if('wakeLock' in navigator){
+      bloqueoPantalla = await navigator.wakeLock.request('screen');
+    }
+  }catch(e){ console.warn('No se pudo mantener la pantalla encendida', e); }
+}
+mantenerPantallaEncendida();
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') mantenerPantallaEncendida();
+});
 
 // Varios estilos de mapa
 const MAPTILER_KEY = 'XgC5ZGwB6l2URF1gr8I1';
@@ -876,6 +899,23 @@ function construirAcumulados(coords){
   return acum;
 }
 
+function normalizarAngulo(a){
+  return ((a + 540) % 360) - 180; // rango -180..180
+}
+
+function construirManiobras(coords){
+  const maniobras = [];
+  for(let i=1; i<coords.length-1; i++){
+    const bIn = calcularRumbo(coords[i-1], coords[i]);
+    const bOut = calcularRumbo(coords[i], coords[i+1]);
+    const diff = normalizarAngulo(bOut - bIn);
+    if(Math.abs(diff) > 25){
+      maniobras.push({ indice:i, giro: diff > 0 ? 'derecha' : 'izquierda' });
+    }
+  }
+  return maniobras;
+}
+
 function indiceMasCercanoEnRuta(coords, pos){
   let mejorI = 0, mejorD = Infinity;
   coords.forEach((c,i)=>{
@@ -887,21 +927,37 @@ function indiceMasCercanoEnRuta(coords, pos){
 
 function actualizarDistanciaDestino(){
   const caja = document.getElementById('destinoBox');
-  if(!destinoActivo || !userMarker){ caja.classList.remove('show'); return; }
+  const cajaGiro = document.getElementById('giroBox');
+  if(!destinoActivo || !userMarker){ caja.classList.remove('show'); cajaGiro.classList.remove('show'); return; }
   const pos = userMarker.getLatLng();
   const posArr = [pos.lat, pos.lng];
 
   let d = distanciaKm(posArr, destinoActivo); // línea recta, de reserva
+  cajaGiro.classList.remove('show');
 
   if(rutaAcumulada){
     const { indice, distanciaAlaRuta } = indiceMasCercanoEnRuta(rutaAcumulada.coords, posArr);
     if(distanciaAlaRuta < 0.3){ // estás sobre la huella (menos de 300m de ella): usar distancia real del recorrido
       const total = rutaAcumulada.acumulados[rutaAcumulada.acumulados.length - 1];
-      d = rutaAcumulada.esDestinoInicio ? rutaAcumulada.acumulados[indice] : (total - rutaAcumulada.acumulados[indice]);
+      const invertido = rutaAcumulada.esDestinoInicio;
+      d = invertido ? rutaAcumulada.acumulados[indice] : (total - rutaAcumulada.acumulados[indice]);
+
+      // Próxima maniobra en la dirección en que avanzas
+      const siguiente = invertido
+        ? [...rutaAcumulada.maniobras].reverse().find(m => m.indice < indice)
+        : rutaAcumulada.maniobras.find(m => m.indice > indice);
+
+      if(siguiente){
+        const distGiro = Math.abs(rutaAcumulada.acumulados[siguiente.indice] - rutaAcumulada.acumulados[indice]);
+        const metros = Math.round(distGiro * 1000);
+        const icono = siguiente.giro === 'derecha' ? '➡️' : '⬅️';
+        cajaGiro.textContent = `${icono} ${metros >= 1000 ? (distGiro).toFixed(1)+' km' : metros+' m'}`;
+        cajaGiro.classList.add('show');
+      }
     }
   }
 
-  caja.textContent = d < 0.05 ? '📍 ¡Has llegado!' : `📍 ${nombreDestino || 'Destino'}: ${d.toFixed(1)} km`;
+  caja.textContent = d < 0.05 ? '📍 ¡Llegada!' : `📍 ${d.toFixed(1)} km`;
   caja.classList.add('show');
 }
 
@@ -920,7 +976,7 @@ function dibujarGpx(coords, nombre, puntoDestino){
 
   destinoActivo = puntoDestino || coords[0];
   nombreDestino = nombre;
-  rutaAcumulada = { coords, acumulados: construirAcumulados(coords), esDestinoInicio: !puntoDestino };
+  rutaAcumulada = { coords, acumulados: construirAcumulados(coords), esDestinoInicio: !puntoDestino, maniobras: construirManiobras(coords) };
   actualizarDistanciaDestino();
 }
 
