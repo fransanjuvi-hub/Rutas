@@ -123,6 +123,14 @@
   .btn-grabar.activo{ background:#E53935;color:white;animation:pulso 1.2s infinite; }
   @keyframes pulso{ 0%,100%{ box-shadow:0 0 0 0 rgba(229,57,53,.5); } 50%{ box-shadow:0 0 0 8px rgba(229,57,53,0); } }
 
+  .destino-box{
+    position:absolute;left:14px;top:106px;z-index:1300;
+    background:#8A3FFC;color:white;padding:8px 14px;border-radius:10px;
+    font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.35);
+    display:none;
+  }
+  .destino-box.show{ display:block; }
+
   .info-panel{
     display:none;gap:8px;
   }
@@ -223,6 +231,7 @@
 <input type="file" id="gpxInput" accept=".gpx" style="display:none">
 
 <div class="aviso-osm" id="avisoOsm"></div>
+<div class="destino-box" id="destinoBox"></div>
 
 <div class="draw-toolbar" id="drawToolbar">
   <span id="drawHint">Toca el mapa para marcar el camino</span>
@@ -393,7 +402,7 @@ async function navegarHastaPunto(latlng){
   const origen = userMarker.getLatLng();
   const ruta = await obtenerRutaSiguiendoCaminos([[origen.lat, origen.lng], [latlng.lat, latlng.lng]]);
   if(ruta && ruta.length > 1){
-    dibujarGpx(ruta, 'Ruta hasta el punto');
+    dibujarGpx(ruta, 'Ruta hasta el punto', [latlng.lat, latlng.lng]);
     mostrarAvisoOsm('Ruta calculada ✓', true);
   } else {
     mostrarAvisoOsm('No se pudo calcular la ruta hasta ahí', true);
@@ -708,6 +717,7 @@ function onPos(pos){
     document.getElementById('tripVal').textContent = tripKm.toFixed(1);
   }
   ultimaPosTrip = latlng;
+  actualizarDistanciaDestino();
 
   // Grabación de camino: se va añadiendo un punto cada ~8m recorridos
   if(grabando){
@@ -854,7 +864,19 @@ function actualizarFlechasGpx(){
 }
 map.on('zoomend', actualizarFlechasGpx);
 
-function dibujarGpx(coords, nombre){
+let destinoActivo = null;
+let nombreDestino = '';
+
+function actualizarDistanciaDestino(){
+  const caja = document.getElementById('destinoBox');
+  if(!destinoActivo || !userMarker){ caja.classList.remove('show'); return; }
+  const pos = userMarker.getLatLng();
+  const d = distanciaKm([pos.lat, pos.lng], destinoActivo);
+  caja.textContent = d < 0.05 ? '📍 ¡Has llegado!' : `📍 ${nombreDestino || 'Destino'}: ${d.toFixed(1)} km`;
+  caja.classList.add('show');
+}
+
+function dibujarGpx(coords, nombre, puntoDestino){
   if(capaGpx){ map.removeLayer(capaGpx); }
   gpxActual = { nombre, coords };
   try{ localStorage.setItem(GPX_STORAGE_KEY, JSON.stringify(gpxActual)); }catch(err){}
@@ -866,6 +888,10 @@ function dibujarGpx(coords, nombre){
 
   map.fitBounds(L.polyline(coords).getBounds(), { padding:[40,40] });
   actualizarFlechasGpx();
+
+  destinoActivo = puntoDestino || coords[0];
+  nombreDestino = nombre;
+  actualizarDistanciaDestino();
 }
 
 function invertirGpx(){
@@ -877,6 +903,8 @@ function quitarGpx(){
   if(capaGpx){ map.removeLayer(capaGpx); capaGpx = null; }
   if(capaFlechasGpx){ map.removeLayer(capaFlechasGpx); capaFlechasGpx = null; }
   gpxActual = null;
+  destinoActivo = null;
+  document.getElementById('destinoBox').classList.remove('show');
   localStorage.removeItem(GPX_STORAGE_KEY);
 }
 
