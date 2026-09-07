@@ -113,6 +113,16 @@
   }
   .info-toggle.abierto{ transform:rotate(180deg); }
 
+  .btn-grabar{
+    position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:1400;
+    width:40px;height:40px;border-radius:50%;border:none;
+    background:var(--panel);color:#E53935;font-size:18px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  .btn-grabar.activo{ background:#E53935;color:white;animation:pulso 1.2s infinite; }
+  @keyframes pulso{ 0%,100%{ box-shadow:0 0 0 0 rgba(229,57,53,.5); } 50%{ box-shadow:0 0 0 8px rgba(229,57,53,0); } }
+
   .info-panel{
     display:none;gap:8px;
   }
@@ -205,6 +215,8 @@
 <div class="topbar">
   <div class="speed-badge"><div class="val" id="speedVal">--</div><div class="unit">km/h</div></div>
 </div>
+
+<button class="btn-grabar" id="btnGrabar" title="Grabar camino">⏺</button>
 
 <button class="menu-btn" id="menuBtn" title="Menú">☰</button>
 <div class="menu-panel" id="menuPanel"></div>
@@ -696,6 +708,15 @@ function onPos(pos){
     document.getElementById('tripVal').textContent = tripKm.toFixed(1);
   }
   ultimaPosTrip = latlng;
+
+  // Grabación de camino: se va añadiendo un punto cada ~8m recorridos
+  if(grabando){
+    if(!ultimaPosGrabada || distanciaKm(ultimaPosGrabada, latlng) > 0.008){
+      puntosNuevos.push(latlng);
+      ultimaPosGrabada = latlng;
+      mostrarAvisoOsm(`🔴 Grabando… ${puntosNuevos.length} puntos`);
+    }
+  }
 }
 
 function onErr(err){
@@ -986,7 +1007,7 @@ menuPanel.addEventListener('click', (e)=>{
   if(!accion) return;
   cerrarMenu();
   if(accion === 'locate') irAMiPosicion();
-  else if(accion === 'draw') activarDibujo(!dibujando);
+  else if(accion === 'draw'){ if(!grabando) activarDibujo(!dibujando); }
   else if(accion === 'gpx-cargar' || accion === 'gpx-otro') document.getElementById('gpxInput').click();
   else if(accion === 'gpx-quitar') quitarGpx();
   else if(accion === 'gpx-invertir') invertirGpx();
@@ -997,6 +1018,35 @@ menuPanel.addEventListener('click', (e)=>{
 // ---- Modo dibujo: marcar un camino nuevo ----
 let dibujando = false;
 let puntosNuevos = [];
+let grabando = false;
+let ultimaPosGrabada = null;
+
+function iniciarGrabacion(){
+  if(dibujando) return;
+  grabando = true;
+  puntosNuevos = [];
+  ultimaPosGrabada = null;
+  document.getElementById('btnGrabar').classList.add('activo');
+  mostrarAvisoOsm('🔴 Grabando…');
+}
+
+function detenerGrabacionYGuardar(){
+  grabando = false;
+  document.getElementById('btnGrabar').classList.remove('activo');
+  if(puntosNuevos.length < 2){
+    mostrarAvisoOsm('Grabación demasiado corta, descartada', true);
+    return;
+  }
+  dificultadSel = 'verde'; legalSel = 'verde';
+  pintarSeleccion('swatchesDificultad', 'verde');
+  pintarSeleccion('swatchesLegal', 'verde');
+  document.getElementById('nombrePista').value = '';
+  sheetOverlay.classList.add('show');
+}
+
+document.getElementById('btnGrabar').addEventListener('click', ()=>{
+  grabando ? detenerGrabacionYGuardar() : iniciarGrabacion();
+});
 let lineaTemp = null;
 let marcadoresTemp = [];
 
