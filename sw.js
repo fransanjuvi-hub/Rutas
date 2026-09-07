@@ -1,5 +1,5 @@
 const CACHE_TILES = 'senderos-tiles-v1';
-const CACHE_SHELL = 'senderos-shell-v5';
+const CACHE_SHELL = 'senderos-shell-v6';
 const PAGINA_PRINCIPAL = './index.html';
 const ARCHIVOS_APP = [PAGINA_PRINCIPAL, './manifest.json', './icon-192.png', './icon-512.png'];
 
@@ -37,10 +37,13 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Navegación a la app: si no hay red, servir la copia guardada
+  // Navegación a la app: si hay red, refresca también la copia guardada para offline
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request, { cache: 'reload' }).catch(() => caches.match(PAGINA_PRINCIPAL))
+      fetch(e.request, { cache: 'reload' }).then(resp => {
+        caches.open(CACHE_SHELL).then(cache => cache.put(PAGINA_PRINCIPAL, resp.clone()));
+        return resp;
+      }).catch(() => caches.match(PAGINA_PRINCIPAL))
     );
   }
 });
