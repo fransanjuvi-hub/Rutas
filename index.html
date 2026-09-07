@@ -866,12 +866,41 @@ map.on('zoomend', actualizarFlechasGpx);
 
 let destinoActivo = null;
 let nombreDestino = '';
+let rutaAcumulada = null; // { coords, acumulados, esDestinoInicio }
+
+function construirAcumulados(coords){
+  const acum = [0];
+  for(let i=1; i<coords.length; i++){
+    acum.push(acum[i-1] + distanciaKm(coords[i-1], coords[i]));
+  }
+  return acum;
+}
+
+function indiceMasCercanoEnRuta(coords, pos){
+  let mejorI = 0, mejorD = Infinity;
+  coords.forEach((c,i)=>{
+    const d = distanciaKm(c, pos);
+    if(d < mejorD){ mejorD = d; mejorI = i; }
+  });
+  return { indice: mejorI, distanciaAlaRuta: mejorD };
+}
 
 function actualizarDistanciaDestino(){
   const caja = document.getElementById('destinoBox');
   if(!destinoActivo || !userMarker){ caja.classList.remove('show'); return; }
   const pos = userMarker.getLatLng();
-  const d = distanciaKm([pos.lat, pos.lng], destinoActivo);
+  const posArr = [pos.lat, pos.lng];
+
+  let d = distanciaKm(posArr, destinoActivo); // línea recta, de reserva
+
+  if(rutaAcumulada){
+    const { indice, distanciaAlaRuta } = indiceMasCercanoEnRuta(rutaAcumulada.coords, posArr);
+    if(distanciaAlaRuta < 0.3){ // estás sobre la huella (menos de 300m de ella): usar distancia real del recorrido
+      const total = rutaAcumulada.acumulados[rutaAcumulada.acumulados.length - 1];
+      d = rutaAcumulada.esDestinoInicio ? rutaAcumulada.acumulados[indice] : (total - rutaAcumulada.acumulados[indice]);
+    }
+  }
+
   caja.textContent = d < 0.05 ? '📍 ¡Has llegado!' : `📍 ${nombreDestino || 'Destino'}: ${d.toFixed(1)} km`;
   caja.classList.add('show');
 }
@@ -891,6 +920,7 @@ function dibujarGpx(coords, nombre, puntoDestino){
 
   destinoActivo = puntoDestino || coords[0];
   nombreDestino = nombre;
+  rutaAcumulada = { coords, acumulados: construirAcumulados(coords), esDestinoInicio: !puntoDestino };
   actualizarDistanciaDestino();
 }
 
@@ -904,6 +934,7 @@ function quitarGpx(){
   if(capaFlechasGpx){ map.removeLayer(capaFlechasGpx); capaFlechasGpx = null; }
   gpxActual = null;
   destinoActivo = null;
+  rutaAcumulada = null;
   document.getElementById('destinoBox').classList.remove('show');
   localStorage.removeItem(GPX_STORAGE_KEY);
 }
