@@ -1,7 +1,7 @@
 const CACHE_TILES = 'senderos-tiles-v1';
-const CACHE_SHELL = 'senderos-shell-v6';
+const CACHE_SHELL = 'senderos-shell-v7';
 const PAGINA_PRINCIPAL = './index.html';
-const ARCHIVOS_APP = [PAGINA_PRINCIPAL, './manifest.json', './icon-192.png', './icon-512.png'];
+const ARCHIVOS_APP = [PAGINA_PRINCIPAL, './manifest.json', './icon-192.png', './icon-512.png', './vias-pecuarias.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

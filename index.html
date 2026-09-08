@@ -493,6 +493,54 @@ const COLOR_GRIS = '#8a8a8a';
 const idsOsmRenderizados = new Set();
 let timeoutCargaOsm = null;
 
+// ---- Vías pecuarias (dato oficial, solo provincia de Alicante por ahora) ----
+let viasPecuarias = [];
+const indiceViasPecuarias = new Map();
+
+function claveCelda(lat, lon){ return Math.round(lat*100) + '_' + Math.round(lon*100); } // celdas de ~1km
+
+function construirIndiceViasPecuarias(){
+  viasPecuarias.forEach((via, idx)=>{
+    via.l.forEach(linea=>{
+      linea.forEach(pt=>{
+        const clave = claveCelda(pt[0], pt[1]);
+        if(!indiceViasPecuarias.has(clave)) indiceViasPecuarias.set(clave, new Set());
+        indiceViasPecuarias.get(clave).add(idx);
+      });
+    });
+  });
+}
+
+fetch('./vias-pecuarias.json')
+  .then(r => r.json())
+  .then(data => { viasPecuarias = data; construirIndiceViasPecuarias(); })
+  .catch(e => console.warn('No se pudieron cargar las vías pecuarias', e));
+
+function comprobarViaPecuaria(coordsCamino){
+  const candidatos = new Set();
+  coordsCamino.forEach(pt=>{
+    for(let dlat=-1; dlat<=1; dlat++){
+      for(let dlon=-1; dlon<=1; dlon++){
+        const clave = (Math.round(pt[0]*100)+dlat) + '_' + (Math.round(pt[1]*100)+dlon);
+        const set = indiceViasPecuarias.get(clave);
+        if(set) set.forEach(i => candidatos.add(i));
+      }
+    }
+  });
+  let mejor = null, mejorD = 0.03; // umbral de 30 metros
+  candidatos.forEach(idx=>{
+    viasPecuarias[idx].l.forEach(linea=>{
+      linea.forEach(ptVia=>{
+        coordsCamino.forEach(ptCamino=>{
+          const d = distanciaKm(ptVia, ptCamino);
+          if(d < mejorD){ mejorD = d; mejor = viasPecuarias[idx]; }
+        });
+      });
+    });
+  });
+  return mejor;
+}
+
 function estimarPista(tags){
   let dificultad = null;
   let legal = null;
@@ -589,6 +637,16 @@ function guardarEnCacheOsm(nuevosElementos){
   catch(e){ console.warn('La caché de caminos está llena', e); }
 }
 
+function estimarPistaConViaPecuaria(tags, coords){
+  const resultado = estimarPista(tags);
+  const via = comprobarViaPecuaria(coords);
+  if(via){
+    if(resultado.legal !== 'rojo') resultado.legal = 'amarillo';
+    resultado.motivos.push(`coincide con vía pecuaria "${via.n}" (${via.t}) — circulación a motor restringida, revisar normativa`);
+  }
+  return resultado;
+}
+
 function wayDentroDeBbox(way, b){
   return way.geometry.some(pt => pt.lat>=b.getSouth() && pt.lat<=b.getNorth() && pt.lon>=b.getWest() && pt.lon<=b.getEast());
 }
@@ -599,7 +657,7 @@ function renderizarDesdeCacheOsm(b){
     if(idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
     idsOsmRenderizados.add(way.id);
     const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-    const { dificultad, legal, motivos } = estimarPista(way.tags || {});
+    const { dificultad, legal, motivos } = estimarPistaConViaPecuaria(way.tags || {}, coords);
     renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
     añadidos++;
   });
@@ -641,7 +699,7 @@ async function cargarCaminosOsmEnVista(){
         if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
         idsOsmRenderizados.add(way.id);
         const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-        const { dificultad, legal, motivos } = estimarPista(way.tags || {});
+        const { dificultad, legal, motivos } = estimarPistaConViaPecuaria(way.tags || {}, coords);
         renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
       });
       return;
