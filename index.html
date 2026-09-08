@@ -605,9 +605,11 @@ function estimarPista(tags){
   return { dificultad: dificultad || 'gris', legal: legal || 'gris', motivos };
 }
 
-function renderCaminoOsm(coords, dificultad, legal, tags, motivos){
+const COLOR_VIA_PECUARIA = '#8B5E3C';
+
+function renderCaminoOsm(coords, dificultad, legal, tags, motivos, esViaPecuaria){
   const colorInt = dificultad === 'gris' ? COLOR_GRIS : COLORS[dificultad];
-  const colorCont = legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal];
+  const colorCont = esViaPecuaria ? COLOR_VIA_PECUARIA : (legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal]);
   const detalle = (motivos && motivos.length) ? motivos.join(' · ') : 'Sin datos suficientes';
   const etiqueta = dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática (${detalle}) · revisar sobre el terreno`;
   const popup = `<b>${tags.name || 'Camino sin nombre'}</b>${etiqueta}`;
@@ -642,6 +644,8 @@ function estimarPistaConViaPecuaria(tags, coords){
   const via = comprobarViaPecuaria(coords);
   if(via){
     if(resultado.legal !== 'rojo') resultado.legal = 'amarillo';
+    resultado.esViaPecuaria = true;
+    resultado.nombreViaPecuaria = via.n;
     resultado.motivos.push(`coincide con vía pecuaria "${via.n}" (${via.t}) — circulación a motor restringida, revisar normativa`);
   }
   return resultado;
@@ -657,8 +661,8 @@ function renderizarDesdeCacheOsm(b){
     if(idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
     idsOsmRenderizados.add(way.id);
     const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-    const { dificultad, legal, motivos } = estimarPistaConViaPecuaria(way.tags || {}, coords);
-    renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
+    const { dificultad, legal, motivos, esViaPecuaria } = estimarPistaConViaPecuaria(way.tags || {}, coords);
+    renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos, esViaPecuaria);
     añadidos++;
   });
   return añadidos;
@@ -699,8 +703,8 @@ async function cargarCaminosOsmEnVista(){
         if(idsOsmRenderizados.has(way.id) || !way.geometry || way.geometry.length < 2) return;
         idsOsmRenderizados.add(way.id);
         const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
-        const { dificultad, legal, motivos } = estimarPistaConViaPecuaria(way.tags || {}, coords);
-        renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos);
+        const { dificultad, legal, motivos, esViaPecuaria } = estimarPistaConViaPecuaria(way.tags || {}, coords);
+        renderCaminoOsm(coords, dificultad, legal, way.tags || {}, motivos, esViaPecuaria);
       });
       return;
     }catch(e){
