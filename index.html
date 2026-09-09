@@ -725,12 +725,13 @@ function bboxCubierto(actual, anterior){
 async function cargarCaminosOsmEnVista(){
   if(map.getZoom() < 13) return;
   const b = map.getBounds();
-  const desdeCache = renderizarDesdeCacheOsm(b);
+  const bParaDibujar = b.pad(1.0); // dibuja de golpe una zona bastante más amplia que la visible, para que moverte dentro de ella sea inmediato
+  renderizarDesdeCacheOsm(bParaDibujar);
 
   if(bboxCubierto(b, ultimoBboxConsultado)) return; // ya consultamos esta zona hace poco
   if(!navigator.onLine) return;
 
-  const bAmpliado = b.pad(0.3); // margen extra para cubrir movimientos cercanos sin repetir consulta
+  const bAmpliado = b.pad(0.3); // margen extra para la consulta de red
   const bbox = `${bAmpliado.getSouth()},${bAmpliado.getWest()},${bAmpliado.getNorth()},${bAmpliado.getEast()}`;
   const query = `[out:json][timeout:25];(way["highway"~"^(track|path|bridleway|unclassified)$"](${bbox});); out geom;`;
   const servidores = [
