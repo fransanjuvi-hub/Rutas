@@ -624,18 +624,53 @@ function leerCacheOsm(){
   catch(e){ return []; }
 }
 
+let cacheOsmMemoria = null;
+let idsCacheOsmSet = null;
+let indiceCacheOsm = null; // Map: celda -> Set de índices en cacheOsmMemoria
+
+function claveOsm(lat, lon){ return Math.round(lat*100) + '_' + Math.round(lon*100); } // celdas de ~1km
+
+function indexarWayOsm(way, idx){
+  const celdas = new Set(way.geometry.map(pt => claveOsm(pt.lat, pt.lon)));
+  celdas.forEach(c=>{
+    if(!indiceCacheOsm.has(c)) indiceCacheOsm.set(c, new Set());
+    indiceCacheOsm.get(c).add(idx);
+  });
+}
+
+function reconstruirIndiceCacheOsm(){
+  indiceCacheOsm = new Map();
+  cacheOsmMemoria.forEach((way, idx) => indexarWayOsm(way, idx));
+}
+
+function asegurarCacheOsmCargada(){
+  if(cacheOsmMemoria !== null) return;
+  cacheOsmMemoria = leerCacheOsm();
+  idsCacheOsmSet = new Set(cacheOsmMemoria.map(w=>w.id));
+  reconstruirIndiceCacheOsm();
+}
+
 function guardarEnCacheOsm(nuevosElementos){
   if(!nuevosElementos || !nuevosElementos.length) return;
-  const actuales = leerCacheOsm();
-  const idsExistentes = new Set(actuales.map(w=>w.id));
+  asegurarCacheOsmCargada();
+  let cambios = false;
   nuevosElementos.forEach(w=>{
-    if(!idsExistentes.has(w.id) && w.geometry && w.geometry.length>1){
-      actuales.push({ id:w.id, geometry:w.geometry, tags:w.tags||{} });
-      idsExistentes.add(w.id);
+    if(!idsCacheOsmSet.has(w.id) && w.geometry && w.geometry.length>1){
+      const entry = { id:w.id, geometry:w.geometry, tags:w.tags||{} };
+      const idx = cacheOsmMemoria.length;
+      cacheOsmMemoria.push(entry);
+      idsCacheOsmSet.add(w.id);
+      indexarWayOsm(entry, idx);
+      cambios = true;
     }
   });
-  const recortado = actuales.slice(-8000); // límite de seguridad para el móvil
-  try{ localStorage.setItem(OSM_CACHE_KEY, JSON.stringify(recortado)); }
+  if(!cambios) return;
+  if(cacheOsmMemoria.length > 8000){ // límite de seguridad para el móvil
+    cacheOsmMemoria = cacheOsmMemoria.slice(-8000);
+    idsCacheOsmSet = new Set(cacheOsmMemoria.map(w=>w.id));
+    reconstruirIndiceCacheOsm();
+  }
+  try{ localStorage.setItem(OSM_CACHE_KEY, JSON.stringify(cacheOsmMemoria)); }
   catch(e){ console.warn('La caché de caminos está llena', e); }
 }
 
@@ -656,9 +691,20 @@ function wayDentroDeBbox(way, b){
 }
 
 function renderizarDesdeCacheOsm(b){
+  asegurarCacheOsmCargada();
+  const candidatos = new Set();
+  const latMin = Math.floor(b.getSouth()*100), latMax = Math.ceil(b.getNorth()*100);
+  const lonMin = Math.floor(b.getWest()*100), lonMax = Math.ceil(b.getEast()*100);
+  for(let la=latMin; la<=latMax; la++){
+    for(let lo=lonMin; lo<=lonMax; lo++){
+      const set = indiceCacheOsm.get(la + '_' + lo);
+      if(set) set.forEach(i => candidatos.add(i));
+    }
+  }
   let añadidos = 0;
-  leerCacheOsm().forEach(way=>{
-    if(idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
+  candidatos.forEach(idx=>{
+    const way = cacheOsmMemoria[idx];
+    if(!way || idsOsmRenderizados.has(way.id) || !wayDentroDeBbox(way, b)) return;
     idsOsmRenderizados.add(way.id);
     const coords = way.geometry.map(pt => [pt.lat, pt.lon]);
     const { dificultad, legal, motivos, esViaPecuaria } = estimarPistaConViaPecuaria(way.tags || {}, coords);
