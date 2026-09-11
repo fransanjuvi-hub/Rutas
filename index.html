@@ -377,7 +377,8 @@ function pesosPorZoom(z){
   if(z < 14) return { casing:2.6, gap:1.4, interior:0.8, toque:14 }; // ~1.5km, fino
   if(z < 15) return { casing:3.6, gap:2, interior:1.1, toque:17 };
   if(z < 16) return { casing:4.8, gap:2.7, interior:1.4, toque:20 };
-  return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16+
+  if(z < 17) return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16
+  return { casing:8, gap:4.5, interior:2.4, toque:26 }; // ~100m o más cerca: trazado bien visible
 }
 
 function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado, opciones){
