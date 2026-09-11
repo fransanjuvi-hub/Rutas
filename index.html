@@ -365,8 +365,8 @@ setTimeout(()=>{
   }
 }, 0);
 
-const COLORS = { verde:'#4C8A22', amarillo:'#FFD400', rojo:'#E53935' };
-const COLORS_CONTORNO = { verde:'#4C8A22', amarillo:'#D98A00', rojo:'#A11E1E' };
+const COLORS = { verde:'#4C8A22', amarillo:'#FFD400', rojo:'#E10600' };
+const COLORS_CONTORNO = { verde:'#4C8A22', amarillo:'#D98A00', rojo:'#B00000' };
 
 // ---- Sistema de grosor/visibilidad adaptado al zoom ----
 // A ~2km de escala (zoom bajo) no se ven los caminos; van engrosando según te acercas
@@ -383,7 +383,7 @@ function pesosPorZoom(z){
 function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado, opciones){
   opciones = opciones || {};
   const casing = L.polyline(coords, { color:colorContorno, weight:1, lineCap:'round', opacity: atenuado?0.5:1 });
-  const gap = L.polyline(coords, { color:'#E7E2CC', weight:1, lineCap:'round', opacity:0.9 });
+  const gap = L.polyline(coords, { color:'#E7E2CC', weight:1, lineCap:'round', opacity: opciones.sinHueco ? 0 : 0.9 });
   const interior = L.polyline(coords, { color:colorInterior, weight:1, lineCap:'round', opacity: atenuado?0.6:1 });
   const zonaToque = L.polyline(coords, { color:'#000', weight:14, opacity:0 });
   const group = L.layerGroup([casing, gap, interior, zonaToque]);
@@ -608,11 +608,17 @@ function estimarPista(tags){
 const COLOR_VIA_PECUARIA = '#8B5E3C';
 
 function renderCaminoOsm(coords, dificultad, legal, tags, motivos, esViaPecuaria){
-  const colorInt = dificultad === 'gris' ? COLOR_GRIS : COLORS[dificultad];
-  const colorCont = esViaPecuaria ? COLOR_VIA_PECUARIA : (legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal]);
   const detalle = (motivos && motivos.length) ? motivos.join(' · ') : 'Sin datos suficientes';
-  const etiqueta = dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática (${detalle}) · revisar sobre el terreno`;
-  const popup = `<b>${tags.name || 'Camino sin nombre'}</b>${etiqueta}`;
+  const popup = `<b>${tags.name || 'Camino sin nombre'}</b>${dificultad==='gris' ? 'Sin clasificar todavía' : `Estimación automática (${detalle}) · revisar sobre el terreno`}`;
+
+  if(esViaPecuaria){
+    // Línea sólida, un único color marrón, sin doble línea de dificultad/legalidad
+    crearCaminoVisual(coords, COLOR_VIA_PECUARIA, COLOR_VIA_PECUARIA, popup, false, { sinHueco:true });
+    return;
+  }
+
+  const colorInt = dificultad === 'gris' ? COLOR_GRIS : COLORS[dificultad];
+  const colorCont = legal === 'gris' ? COLOR_GRIS : COLORS_CONTORNO[legal];
   crearCaminoVisual(coords, colorCont, colorInt, popup, dificultad==='gris');
 }
 
