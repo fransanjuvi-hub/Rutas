@@ -370,7 +370,7 @@ const COLORS_CONTORNO = { verde:'#4C8A22', amarillo:'#D98A00', rojo:'#B00000' };
 
 // ---- Sistema de grosor/visibilidad adaptado al zoom ----
 // A ~2km de escala (zoom bajo) no se ven los caminos; van engrosando según te acercas
-const todosLosCaminos = []; // { group, casing, gap, interior, zonaToque }
+const todosLosCaminos = []; // { group, casing, gap, interior }
 
 function pesosPorZoom(z){
   if(z <= 12) return null; // oculto (escala ~2km o más alejado)
@@ -378,7 +378,7 @@ function pesosPorZoom(z){
   if(z < 15) return { casing:3.6, gap:2, interior:1.1, toque:17 };
   if(z < 16) return { casing:4.8, gap:2.7, interior:1.4, toque:20 };
   if(z < 17) return { casing:6, gap:3.4, interior:1.8, toque:22 }; // zoom 16
-  return { casing:8, gap:4.5, interior:2.4, toque:26 }; // ~100m o más cerca: trazado bien visible
+  return { casing:14, gap:8, interior:4, toque:32 }; // ~100m o más cerca: trazado muy visible
 }
 
 function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, atenuado, opciones){
@@ -386,19 +386,18 @@ function crearCaminoVisual(coords, colorContorno, colorInterior, popupHtml, aten
   const casing = L.polyline(coords, { color:colorContorno, weight:1, lineCap:'round', opacity: atenuado?0.5:1 });
   const gap = L.polyline(coords, { color:'#E7E2CC', weight:1, lineCap:'round', opacity: opciones.sinHueco ? 0 : 0.9 });
   const interior = L.polyline(coords, { color:colorInterior, weight:1, lineCap:'round', opacity: atenuado?0.6:1 });
-  const zonaToque = L.polyline(coords, { color:'#000', weight:14, opacity:0 });
-  const group = L.layerGroup([casing, gap, interior, zonaToque]);
-  const entry = { group, casing, gap, interior, zonaToque, idUsuario: opciones.idUsuario || null };
+  const group = L.layerGroup([casing, gap, interior]);
+  const entry = { group, casing, gap, interior, idUsuario: opciones.idUsuario || null };
 
   if(popupHtml){
-    zonaToque.on('click', (e)=>{
+    casing.on('click', (e)=>{
       if(dibujando){ agregarPuntoDibujo(e.latlng); return; }
-      zonaToque.bindPopup(popupHtml).openPopup(e.latlng);
+      casing.bindPopup(popupHtml).openPopup(e.latlng);
     });
-    zonaToque.on('contextmenu', (e)=>{
+    casing.on('contextmenu', (e)=>{
       L.DomEvent.preventDefault(e);
       if(dibujando) return; // en modo dibujo, la pulsación larga sobre un camino no hace nada
-      zonaToque.closePopup();
+      casing.closePopup();
       mostrarMenuAcciones(e.latlng, entry);
     });
   }
@@ -465,7 +464,6 @@ function aplicarEstiloAUnCamino(entry, zoom){
   entry.casing.setStyle({ weight: pesos.casing });
   entry.gap.setStyle({ weight: pesos.gap });
   entry.interior.setStyle({ weight: pesos.interior });
-  entry.zonaToque.setStyle({ weight: pesos.toque });
 }
 
 function actualizarEstiloTodosLosCaminos(){
@@ -732,7 +730,7 @@ function bboxCubierto(actual, anterior){
 async function cargarCaminosOsmEnVista(){
   if(map.getZoom() < 13) return;
   const b = map.getBounds();
-  const bParaDibujar = b.pad(1.0); // dibuja de golpe una zona bastante más amplia que la visible, para que moverte dentro de ella sea inmediato
+  const bParaDibujar = b.pad(0.4); // zona algo más amplia que la visible, equilibrio entre fluidez y no sobrecargar el dibujado
   renderizarDesdeCacheOsm(bParaDibujar);
 
   if(bboxCubierto(b, ultimoBboxConsultado)) return; // ya consultamos esta zona hace poco
