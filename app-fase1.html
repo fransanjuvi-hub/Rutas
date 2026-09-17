@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="google" content="notranslate">
+<title>Senderos Todoterreno — Fase 1 (MapLibre)</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root{
+    --bg:#151a14; --panel:#1e251c; --ink:#eef0e6; --muted:#9aa593;
+    --verde:#4C8A22; --amarillo:#FFD400; --rojo:#E10600; --naranja:#B85C00; --azul:#378ADD;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);}
+  #map{position:absolute;inset:0;}
+
+  .topbar-left{ position:absolute;top:14px;left:14px;z-index:1000;display:flex;align-items:flex-start;gap:8px; }
+  .info-toggle{
+    width:38px;height:38px;border-radius:10px;background:var(--panel);border:none;color:var(--ink);
+    box-shadow:0 2px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    font-size:14px;transition:transform .2s;
+  }
+  .info-toggle.abierto{ transform:rotate(180deg); }
+  .info-panel{ display:none;gap:8px; }
+  .info-panel.show{ display:flex; }
+  .info-box{ background:var(--panel);border-radius:10px;padding:8px 14px;text-align:center;min-width:64px;box-shadow:0 2px 10px rgba(0,0,0,.35); }
+  .info-box .val{ font-size:18px;font-weight:600;line-height:1; }
+  .info-box .unit{ font-size:10px;color:var(--muted);margin-top:2px; }
+
+  .topbar{ position:absolute;top:0;left:0;right:0;z-index:1000;display:flex;justify-content:flex-end;padding:14px;pointer-events:none; }
+  .speed-badge{ background:var(--panel);border-radius:10px;padding:8px 16px;text-align:center;min-width:64px;box-shadow:0 2px 10px rgba(0,0,0,.35);pointer-events:auto; }
+  .speed-badge .val{ font-size:20px;font-weight:600;line-height:1; }
+  .speed-badge .unit{ font-size:10px;color:var(--muted);margin-top:2px; }
+
+  .aviso{
+    position:absolute;left:14px;top:64px;z-index:1500;background:var(--panel);color:var(--ink);
+    padding:8px 14px;border-radius:10px;font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);
+    opacity:0;transition:opacity .3s;pointer-events:none;
+  }
+  .aviso.show{ opacity:1; }
+
+  .menu-btn{
+    position:absolute;bottom:24px;right:14px;z-index:1400;width:50px;height:50px;border-radius:50%;
+    background:var(--panel);border:none;color:var(--ink);box-shadow:0 2px 10px rgba(0,0,0,.35);
+    display:flex;align-items:center;justify-content:center;font-size:20px;
+  }
+  .menu-btn.active{ background:var(--azul); }
+  .menu-panel{
+    position:absolute;bottom:82px;right:14px;z-index:1400;background:var(--panel);border-radius:12px;
+    overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.35);display:none;flex-direction:column;min-width:220px;
+  }
+  .menu-panel.show{ display:flex; }
+  .menu-panel button{ background:none;border:none;color:var(--ink);text-align:left;padding:13px 16px;font-size:14px; }
+  .menu-panel button:not(:last-child){ border-bottom:1px solid rgba(255,255,255,.08); }
+
+  .zoom-fino{
+    position:absolute;bottom:24px;right:70px;z-index:1400;display:flex;background:var(--panel);
+    border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  .zoom-fino button{ width:34px;height:34px;border:none;background:none;color:var(--ink);font-size:16px; }
+
+  .punto-usuario{ width:16px;height:16px;position:relative; }
+  .punto-usuario .base{ width:16px;height:16px;border-radius:50%;background:var(--azul);border:3px solid white;box-shadow:0 0 0 6px rgba(55,138,221,.25); }
+  .punto-usuario .flecha{
+    position:absolute;top:-16px;left:2px;width:0;height:0;
+    border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:12px solid var(--azul);
+    transform-origin:6px 20px;filter:drop-shadow(0 0 1px white);
+  }
+
+  .maplibregl-ctrl-attrib{ font-size:9px !important; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="topbar-left">
+  <button class="info-toggle" id="infoToggle" title="Rumbo y trip">›</button>
+  <div class="info-panel" id="infoPanel">
+    <div class="info-box" id="tripBox" title="Toca para reiniciar"><div class="val" id="tripVal">0.0</div><div class="unit">trip km</div></div>
+    <div class="info-box"><div class="val" id="rumboVal">--</div><div class="unit">grados</div></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div class="speed-badge"><div class="val" id="speedVal">--</div><div class="unit">km/h</div></div>
+</div>
+
+<div class="aviso" id="aviso"></div>
+
+<div class="zoom-fino">
+  <button id="zoomOut">−</button>
+  <button id="zoomIn">+</button>
+</div>
+
+<button class="menu-btn" id="menuBtn" title="Menú">☰</button>
+<div class="menu-panel" id="menuPanel"></div>
+
+<script>
+const MAPTILER_KEY = 'XgC5ZGwB6l2URF1gr8I1';
+const START = [-0.7667, 38.6333]; // [lon, lat] — MapLibre usa lon,lat (al revés que Leaflet)
+
+// ---- Los tres mapas base ----
+const FUENTES = {
+  minimal: `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`,
+  topo: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+  satelite: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+};
+
+function construirEstilo(capaActiva){
+  return {
+    version: 8,
+    sources: {
+      minimal: { type:'raster', tiles:[FUENTES.minimal], tileSize:512, attribution:'© MapTiler © OpenStreetMap' },
+      topo: { type:'raster', tiles:['https://a.tile.opentopomap.org/{z}/{x}/{y}.png','https://b.tile.opentopomap.org/{z}/{x}/{y}.png','https://c.tile.opentopomap.org/{z}/{x}/{y}.png'], tileSize:256, attribution:'© OpenStreetMap, SRTM | OpenTopoMap' },
+      satelite: { type:'raster', tiles:[FUENTES.satelite], tileSize:256, attribution:'Esri World Imagery' }
+    },
+    layers: [
+      { id:'capa-minimal', type:'raster', source:'minimal', layout:{ visibility: capaActiva==='minimal' ? 'visible':'none' } },
+      { id:'capa-topo', type:'raster', source:'topo', layout:{ visibility: capaActiva==='topo' ? 'visible':'none' } },
+      { id:'capa-satelite', type:'raster', source:'satelite', layout:{ visibility: capaActiva==='satelite' ? 'visible':'none' } }
+    ]
+  };
+}
+
+let capaActual = 'minimal';
+const map = new maplibregl.Map({
+  container: 'map',
+  style: construirEstilo(capaActual),
+  center: START,
+  zoom: 14,
+  pitch: 0,
+  bearing: 0,
+  attributionControl: { compact:true }
+});
+
+function cambiarCapa(nombre){
+  capaActual = nombre;
+  ['minimal','topo','satelite'].forEach(c=>{
+    map.setLayoutProperty('capa-'+c, 'visibility', c===nombre ? 'visible' : 'none');
+  });
+}
+
+// ---- Aviso simple ----
+function mostrarAviso(texto, autoOcultar){
+  const el = document.getElementById('aviso');
+  el.textContent = texto;
+  el.classList.add('show');
+  if(autoOcultar){
+    clearTimeout(mostrarAviso._t);
+    mostrarAviso._t = setTimeout(()=> el.classList.remove('show'), 3000);
+  }
+}
+
+// ---- Zoom con pasos finos de 100m cerca de 1km (igual que en la app actual) ----
+function metrosPorPixel(zoom, lat){ return 156543.03392 * Math.cos(lat*Math.PI/180) / Math.pow(2, zoom); }
+function zoomParaDistancia(distanciaMetros, lat){ return Math.log2(156543.03392 * Math.cos(lat*Math.PI/180) * 100 / distanciaMetros); }
+function escalaActualMetros(){ const c = map.getCenter(); return metrosPorPixel(map.getZoom(), c.lat) * 100; }
+
+function zoomConPasoFino(sentido){
+  const c = map.getCenter();
+  const escala = escalaActualMetros();
+  if(escala >= 50 && escala <= 5000){
+    const actualRedondeado = Math.round(escala/100)*100;
+    const nuevaDistancia = actualRedondeado - sentido*100;
+    if(nuevaDistancia >= 50){
+      map.easeTo({ zoom: zoomParaDistancia(nuevaDistancia, c.lat), duration:150 });
+      return;
+    }
+  }
+  map.easeTo({ zoom: map.getZoom() + sentido, duration:150 });
+}
+document.getElementById('zoomIn').addEventListener('click', ()=> zoomConPasoFino(1));
+document.getElementById('zoomOut').addEventListener('click', ()=> zoomConPasoFino(-1));
+
+// ---- GPS: posición, flecha de rumbo, velocidad, trip, y rotación real del mapa ----
+let marker = null;
+let modoRumboArriba = true; // en esta fase de prueba lo dejamos activo por defecto
+let tripKm = 0;
+let ultimaPosTrip = null;
+
+function distanciaKm(a,b){
+  const R=6371, dLat=(b[0]-a[0])*Math.PI/180, dLon=(b[1]-a[1])*Math.PI/180;
+  const lat1=a[0]*Math.PI/180, lat2=b[0]*Math.PI/180;
+  const h=Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+function onPos(pos){
+  const { latitude, longitude, speed, heading } = pos.coords;
+  const lonlat = [longitude, latitude];
+
+  if(!marker){
+    const el = document.createElement('div');
+    el.className = 'punto-usuario';
+    el.innerHTML = `<div class="flecha" id="flechaRumbo"></div><div class="base"></div>`;
+    marker = new maplibregl.Marker({ element: el }).setLngLat(lonlat).addTo(map);
+    map.setCenter(lonlat);
+  } else {
+    marker.setLngLat(lonlat);
+  }
+
+  const kmh = (speed!=null && !isNaN(speed)) ? Math.round(speed*3.6) : null;
+  document.getElementById('speedVal').textContent = kmh!=null ? kmh : '--';
+
+  const rumboEl = document.getElementById('rumboVal');
+  if(heading!=null && !isNaN(heading)){
+    rumboEl.textContent = Math.round(heading)+'°';
+    const flecha = document.getElementById('flechaRumbo');
+    if(flecha && !modoRumboArriba) flecha.style.transform = `rotate(${heading}deg)`;
+  } else {
+    rumboEl.textContent = '--';
+  }
+
+  if(modoRumboArriba){
+    map.easeTo({ center: lonlat, bearing: (heading!=null && !isNaN(heading)) ? heading : map.getBearing(), duration:300 });
+  } else {
+    map.easeTo({ center: lonlat, duration:300 });
+  }
+
+  if(ultimaPosTrip){
+    const d = distanciaKm(ultimaPosTrip, [latitude, longitude]);
+    if(d < 0.2) tripKm += d;
+    document.getElementById('tripVal').textContent = tripKm.toFixed(1);
+  }
+  ultimaPosTrip = [latitude, longitude];
+}
+
+function onErr(err){
+  document.getElementById('speedVal').textContent = '--';
+  mostrarAviso('GPS: ' + (err.message || 'sin señal'), true);
+}
+
+if('geolocation' in navigator){
+  navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
+  navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy:true, timeout:10000 });
+}
+
+document.getElementById('tripBox').addEventListener('click', ()=>{
+  tripKm = 0;
+  document.getElementById('tripVal').textContent = '0.0';
+});
+document.getElementById('infoToggle').addEventListener('click', ()=>{
+  document.getElementById('infoPanel').classList.toggle('show');
+  document.getElementById('infoToggle').classList.toggle('abierto');
+});
+
+// ---- Menú principal ----
+const menuBtn = document.getElementById('menuBtn');
+const menuPanel = document.getElementById('menuPanel');
+
+function abrirMenu(){
+  menuPanel.innerHTML = `
+    <button data-action="locate">📍 Mi posición</button>
+    <button data-action="capa-minimal">🗺️ Mapa: Minimalista</button>
+    <button data-action="capa-topo">🗺️ Mapa: Topográfico</button>
+    <button data-action="capa-satelite">🗺️ Mapa: Satélite</button>
+    <button data-action="rumbo-toggle">🧭 ${modoRumboArriba ? 'Desactivar' : 'Activar'} rumbo arriba</button>
+  `;
+  menuPanel.classList.add('show');
+  menuBtn.classList.add('active');
+}
+function cerrarMenu(){
+  menuPanel.classList.remove('show');
+  menuBtn.classList.remove('active');
+}
+menuBtn.addEventListener('click', ()=> menuPanel.classList.contains('show') ? cerrarMenu() : abrirMenu());
+menuPanel.addEventListener('click', (e)=>{
+  const accion = e.target.dataset.action;
+  if(!accion) return;
+  cerrarMenu();
+  if(accion === 'locate' && marker) map.easeTo({ center: marker.getLngLat(), zoom:16 });
+  else if(accion === 'capa-minimal') cambiarCapa('minimal');
+  else if(accion === 'capa-topo') cambiarCapa('topo');
+  else if(accion === 'capa-satelite') cambiarCapa('satelite');
+  else if(accion === 'rumbo-toggle'){
+    modoRumboArriba = !modoRumboArriba;
+    if(!modoRumboArriba) map.easeTo({ bearing:0, duration:400 });
+  }
+});
+
+// ---- Mantener la pantalla encendida ----
+async function mantenerPantallaEncendida(){
+  try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(e){}
+}
+mantenerPantallaEncendida();
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') mantenerPantallaEncendida(); });
+</script>
+</body>
+</html>
