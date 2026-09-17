@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Prueba de rotación — MapLibre</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  html,body{height:100%;margin:0;font-family:-apple-system,sans-serif;}
+  #map{position:absolute;inset:0;}
+  .panel{
+    position:absolute;top:14px;left:14px;right:14px;z-index:10;
+    background:#151a14;color:#eef0e6;padding:10px 14px;border-radius:10px;
+    font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  .btn{
+    position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:10;
+    background:#378ADD;color:white;border:none;padding:12px 22px;border-radius:30px;
+    font-size:15px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.35);
+  }
+  .btn.activo{ background:#E53935; }
+  .punto-usuario{ width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid white;box-shadow:0 0 0 6px rgba(55,138,221,.25); }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div class="panel" id="panel">Esperando GPS… rumbo: -- · zoom: --</div>
+<button class="btn" id="btnToggle">Activar rotación</button>
+
+<script>
+const MAPTILER_KEY = 'XgC5ZGwB6l2URF1gr8I1';
+
+const style = {
+  version: 8,
+  sources: {
+    base: {
+      type: 'raster',
+      tiles: [`https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}@2x.png?key=${MAPTILER_KEY}`],
+      tileSize: 512,
+      attribution: '© MapTiler © OpenStreetMap contributors'
+    }
+  },
+  layers: [{ id:'base', type:'raster', source:'base' }]
+};
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: style,
+  center: [-0.7667, 38.6333], // Biar
+  zoom: 15,
+  pitch: 0,
+  bearing: 0,
+  attributionControl: true
+});
+
+map.addControl(new maplibregl.NavigationControl({ showCompass:true }), 'bottom-right');
+
+let marker = null;
+let rotacionActiva = false;
+
+function actualizarPanel(heading, zoom){
+  document.getElementById('panel').textContent =
+    `Rumbo: ${heading!=null ? Math.round(heading)+'°' : '--'} · zoom: ${zoom.toFixed(1)} · rotación: ${rotacionActiva ? 'ON' : 'OFF'}`;
+}
+
+document.getElementById('btnToggle').addEventListener('click', (e)=>{
+  rotacionActiva = !rotacionActiva;
+  e.target.textContent = rotacionActiva ? 'Desactivar rotación' : 'Activar rotación';
+  e.target.classList.toggle('activo', rotacionActiva);
+  if(!rotacionActiva) map.easeTo({ bearing: 0, duration: 400 });
+});
+
+function onPos(pos){
+  const { latitude, longitude, heading } = pos.coords;
+  if(!marker){
+    const el = document.createElement('div');
+    el.className = 'punto-usuario';
+    marker = new maplibregl.Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
+    map.setCenter([longitude, latitude]);
+  } else {
+    marker.setLngLat([longitude, latitude]);
+  }
+
+  if(rotacionActiva){
+    map.easeTo({
+      center: [longitude, latitude],
+      bearing: (heading!=null && !isNaN(heading)) ? heading : map.getBearing(),
+      duration: 300
+    });
+  }
+
+  actualizarPanel(heading, map.getZoom());
+}
+
+function onErr(err){
+  document.getElementById('panel').textContent = 'GPS: ' + (err.message || 'error');
+}
+
+if('geolocation' in navigator){
+  navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy:true });
+  navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy:true });
+}
+</script>
+</body>
+</html>
