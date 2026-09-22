@@ -440,6 +440,14 @@ function distanciaKm(a,b){
   return 2*R*Math.asin(Math.sqrt(h));
 }
 
+let rumboSuavizado = null;
+
+function suavizarAngulo(anterior, nuevo, factor){
+  if(anterior === null) return nuevo;
+  let diff = ((nuevo - anterior + 540) % 360) - 180; // diferencia más corta, con vuelta de 360°
+  return (anterior + diff * factor + 360) % 360;
+}
+
 function onPos(pos){
   const { latitude, longitude, speed, heading } = pos.coords;
   const lonlat = [longitude, latitude];
@@ -457,19 +465,25 @@ function onPos(pos){
   const kmh = (speed!=null && !isNaN(speed)) ? Math.round(speed*3.6) : null;
   document.getElementById('speedVal').textContent = kmh!=null ? kmh : '--';
 
+  // El rumbo del GPS solo es fiable yendo a una velocidad mínima; si no, se ignora y se mantiene el último válido
+  const rumboValido = heading!=null && !isNaN(heading) && kmh!=null && kmh >= 3;
+  if(rumboValido){
+    rumboSuavizado = suavizarAngulo(rumboSuavizado, heading, 0.35);
+  }
+
   const rumboEl = document.getElementById('rumboVal');
-  if(heading!=null && !isNaN(heading)){
-    rumboEl.textContent = Math.round(heading)+'°';
+  if(rumboSuavizado !== null){
+    rumboEl.textContent = Math.round(rumboSuavizado)+'°';
     const flecha = document.getElementById('flechaRumbo');
-    if(flecha && !modoRumboArriba) flecha.style.transform = `rotate(${heading}deg)`;
+    if(flecha && !modoRumboArriba) flecha.style.transform = `rotate(${rumboSuavizado}deg)`;
   } else {
     rumboEl.textContent = '--';
   }
 
   if(modoRumboArriba){
-    map.easeTo({ center: lonlat, bearing: (heading!=null && !isNaN(heading)) ? heading : map.getBearing(), duration:300 });
+    map.easeTo({ center: lonlat, bearing: rumboSuavizado !== null ? rumboSuavizado : map.getBearing(), duration:500 });
   } else {
-    map.easeTo({ center: lonlat, duration:300 });
+    map.easeTo({ center: lonlat, duration:500 });
   }
 
   if(ultimaPosTrip){
